@@ -1,3 +1,6 @@
+# Preable
+This is a modified version of the original fork to make it work with more file system supported by VFS. I am happy to contribute the changes back if the original repository shows some activity and interest.
+
 # vfs2nio
 
 Provides a bridge between the [JSR 203](https://jcp.org/en/jsr/detail?id=203) ([The Java NIO.2 File System in JDK 7](http://www.oracle.com/technetwork/articles/javase/nio-139333.html)) and [Apache's Commons VFS 2](https://commons.apache.org/proper/commons-vfs/). This allows you to use the standard
