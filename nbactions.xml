@@ -34,10 +34,17 @@
         </properties>
     </action>
     <action>
-            <actionName>CUSTOM-site</actionName>
-            <displayName>site</displayName>
-            <goals>
-                <goal>site</goal>
-            </goals>
-        </action>
+        <actionName>CUSTOM-deploy</actionName>
+        <displayName>deploy</displayName>
+        <goals>
+            <goal>release:perform</goal>
+        </goals>
+        <profiles>
+            <profle>deploy</profle>
+        </profiles>
+        <properties>
+            <arguments>-DskipTests -Dmaven.javadoc.skip=true</arguments>
+            <goals>install</goals>
+        </properties>
+    </action>
 </actions>

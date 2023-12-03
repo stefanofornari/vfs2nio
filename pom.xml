@@ -59,8 +59,8 @@
     <scm>
         <url>scm:https://github.com/stefanofornari/vfs2nio</url>
         <connection>scm:git:git@github.com:stefanofornari/vfs2nio.git</connection>
-      <tag>HEAD</tag>
-  </scm>
+        <tag>HEAD</tag>
+    </scm>
     <developers>
         <developer>
             <id>brett</id>
@@ -75,7 +75,7 @@
 
     <profiles>
         <profile>
-            <id>release-sign-artifacts</id>
+            <id>deploy</id>
             <activation>
                 <property>
                     <name>performRelease</name>
@@ -167,18 +167,6 @@
                             <name>year</name>
                             <pattern>yyyy</pattern>
                         </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>com.mycila</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>format</goal>
-                        </goals>
                     </execution>
                 </executions>
             </plugin>
