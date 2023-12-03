@@ -1,17 +1,22 @@
 /*
- * Copyright © 2018 - 2022 SSHTOOLS Limited (support@sshtools.com)
+ * Vs2Nio
+ * ^^^^^^
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modifications to the original Copyright (C) 2023 Stefano Fornari.
+ * Licensed under the GUPL-1.2 or later (see LICENSE)
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * All Rights Reserved.  No use, copying or distribution of this
+ * work may be made except in accordance with a valid license
+ * agreement from Stefano Fornari.  This notice must be
+ * included on all copies, modifications and derivatives of this
+ * work.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * THE AUTHOR MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY
+ * OF THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE, OR NON-INFRINGEMENT. STEFANO FORNARI SHALL NOT BE LIABLE FOR ANY
+ * DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR DISTRIBUTING
+ * THIS SOFTWARE OR ITS DERIVATIVES.
  */
 package com.sshtools.vfs2nio;
 
@@ -27,118 +32,131 @@ import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileType;
 
 public class Vfs2NioFileAttributes implements BasicFileAttributes {
-	private final FileObject e;
 
-	Vfs2NioFileAttributes(FileObject e) {
-		this.e = e;
-	}
+    private final FileObject e;
 
-	public Map<String, Object> attributes() {
-		try {
-			return e.getContent().getAttributes();
-		} catch (FileSystemException e) {
-		}
-		return Collections.emptyMap();
-	}
+    Vfs2NioFileAttributes(FileObject e) {
+        this.e = e;
+    }
 
-	public Certificate[] certificates() {
-		try {
-			return e.getContent().getCertificates();
-		} catch (FileSystemException e) {
-		}
-		return null;
-	}
+    public Map<String, Object> attributes() {
+        try {
+            return e.getContent().getAttributes();
+        } catch (FileSystemException e) {
+        }
+        return Collections.emptyMap();
+    }
 
-	public String contentEncoding() {
-		try {
-			FileContentInfo info = e.getContent().getContentInfo();
-			if (info != null)
-				return info.getContentEncoding();
-		} catch (FileSystemException e) {
-		}
-		return null;
-	}
+    public Certificate[] certificates() {
+        try {
+            return e.getContent().getCertificates();
+        } catch (FileSystemException e) {
+        }
+        return null;
+    }
 
-	public String contentType() {
-		try {
-			FileContentInfo info = e.getContent().getContentInfo();
-			if (info != null)
-				return info.getContentType();
-		} catch (FileSystemException e) {
-		}
-		return null;
-	}
+    public String contentEncoding() {
+        try {
+            FileContentInfo info = e.getContent().getContentInfo();
+            if (info != null) {
+                return info.getContentEncoding();
+            }
+        } catch (FileSystemException e) {
+        }
+        return null;
+    }
 
-	@Override
-	public FileTime creationTime() {
-		/*
+    public String contentType() {
+        try {
+            FileContentInfo info = e.getContent().getContentInfo();
+            if (info != null) {
+                return info.getContentType();
+            }
+        } catch (FileSystemException e) {
+        }
+        return null;
+    }
+
+    @Override
+    public FileTime creationTime() {
+        /*
 		 * TODO - maybe from attributes, but those are specific to the file
 		 * system
-		 */
-		return null;
-	}
+         */
+        return null;
+    }
 
-	@Override
-	public Object fileKey() {
-		return e;
-	}
+    @Override
+    public Object fileKey() {
+        return e;
+    }
 
-	@Override
-	public boolean isDirectory() {
-		try {
-			return e.getType() == FileType.FILE_OR_FOLDER || e.getType() == FileType.FOLDER;
-		} catch (FileSystemException e) {
-			return false;
-		}
-	}
+    @Override
+    public boolean isDirectory() {
+        try {
+            //
+            // when VFS resolves a path whith a archive file system it
+            // gives it type IMAGINERY
+            //
+            FileType t = e.getType();
+            return ((t == FileType.FILE_OR_FOLDER) || (t == FileType.FOLDER) || (t == FileType.IMAGINARY));
+        } catch (FileSystemException e) {
+            return false;
+        }
+    }
 
-	@Override
-	public boolean isOther() {
-		return false;
-	}
+    @Override
+    public boolean isOther() {
+        return false;
+    }
 
-	@Override
-	public boolean isRegularFile() {
-		try {
-			return e.getType() == FileType.FILE;
-		} catch (FileSystemException e) {
-			return false;
-		}
-	}
+    @Override
+    public boolean isRegularFile() {
+        try {
+            //
+            // when VFS resolves a path whith a archive file system it
+            // gives it type IMAGINERY
+            //
+            FileType t = e.getType();
+            return (t == FileType.FILE) || (t == FileType.IMAGINARY);
+        } catch (FileSystemException e) {
+            return false;
+        }
+    }
 
-	@Override
-	public boolean isSymbolicLink() {
-		try {
+    @Override
+    public boolean isSymbolicLink() {
+        try {
             return e.isSymbolicLink();
         } catch (FileSystemException e) {
             throw new IllegalStateException("Could not determine if symbolic link.");
         }
-	}
+    }
 
-	@Override
-	public FileTime lastAccessTime() {
-		/*
+    @Override
+    public FileTime lastAccessTime() {
+        /*
 		 * TODO - maybe from attributes, but those are specific to the file
 		 * system
-		 */
-		return null;
-	}
+         */
+        return null;
+    }
 
-	@Override
-	public FileTime lastModifiedTime() {
-		try {
-			return FileTime.fromMillis(e.getContent().getLastModifiedTime());
-		} catch (FileSystemException e) {
-			return null;
-		}
-	}
+    @Override
+    public FileTime lastModifiedTime() {
+        try {
+            return FileTime.fromMillis(e.getContent().getLastModifiedTime());
+        } catch (FileSystemException e) {
+            return null;
+        }
+    }
 
-	@Override
-	public long size() {
-		try {
-			return e.getContent().getSize();
-		} catch (FileSystemException e) {
-			return 0;
-		}
-	}
+    @Override
+    public long size() {
+        try {
+            return e.getContent().getSize();
+        } catch (FileSystemException e) {
+            return 0;
+        }
+    }
 }
