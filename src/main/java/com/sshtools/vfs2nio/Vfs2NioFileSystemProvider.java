@@ -1,20 +1,26 @@
 /*
- * Copyright © 2018 - 2022 SSHTOOLS Limited (support@sshtools.com)
+ * Vs2Nio
+ * ^^^^^^
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Copyright (C) 2023 Stefano Fornari. Licensed under the
+ * GUPL-1.2 or later (see LICENSE)
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * All Rights Reserved.  No use, copying or distribution of this
+ * work may be made except in accordance with a valid license
+ * agreement from Stefano Fornari.  This notice must be
+ * included on all copies, modifications and derivatives of this
+ * work.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * THE AUTHOR MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY
+ * OF THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE, OR NON-INFRINGEMENT. STEFANO FORNARI SHALL NOT BE LIABLE FOR ANY
+ * DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR DISTRIBUTING
+ * THIS SOFTWARE OR ITS DERIVATIVES.
  */
 package com.sshtools.vfs2nio;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -56,6 +62,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.commons.vfs2.AllFileSelector;
+import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.FileSystemOptions;
@@ -249,7 +256,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                     var arr = new byte[dst.remaining()];
                     int r = rac.getInputStream().read(arr, offset, length);
                     if(r > 0)
-                        dst.put(arr, 0, r); 
+                        dst.put(arr, 0, r);
                     t += r;
                 }
                 return t;
@@ -443,17 +450,22 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
              * First resolve the URI without a path. For Commons VFS, this may either be the
              * actual root of the file system, or it might be some intermediate path such as
              * the user's home directory.
-             * 
+             *
              * Once the root is resolved, we then resolve the path against that, ALWAYS
              * treating it as an absolute path.
-             * 
+             *
              * Due to how Commons VFS works, we cannot support relative paths from the user
              * homes directory.
              */
+            FileObject foRoot = null;
             var root = toPathlessURI(path);
-            var foRoot = mgr.resolveFile(root.toString(), opts);
-            if (path.getPath() != null) {
-                foRoot = foRoot.resolveFile(path.getPath().substring(1));
+            try {
+                foRoot = mgr.resolveFile(root.toString(), opts);
+                if (path.getPath() != null) {
+                    foRoot = foRoot.resolveFile(path.getPath().substring(1));
+                }
+            } catch (FileSystemException x) {
+                foRoot = mgr.resolveFile(path.toString(), opts);
             }
 
             var vfs = new Vfs2NioFileSystem(this, foRoot, path);
@@ -513,7 +525,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     protected URI toPathlessURI(URI uri) {
         try {
-            return new URI(uri.getScheme(), uri.getAuthority(), null, uri.getQuery(), uri.getFragment());
+            return new URI(uri.getScheme(), uri.getAuthority(), File.separator, uri.getQuery(), uri.getFragment());
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }

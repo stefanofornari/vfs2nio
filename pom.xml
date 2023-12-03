@@ -1,18 +1,23 @@
 <!--
 
-    Copyright © 2018 - 2022 SSHTOOLS Limited (support@sshtools.com)
+    Vs2Nio
+    ======
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+    Modificaitons to the original are Copyright (C) 2023 Stefano Fornari.
+    Licensed under the GUPL-1.2 or later (see LICENSE)
 
-        http://www.apache.org/licenses/LICENSE-2.0
+    All Rights Reserved.  No use, copying or distribution of this
+    work may be made except in accordance with a valid license
+    agreement from Stefano Fornari.  This notice must be
+    included on all copies, modifications and derivatives of this
+    work.
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+    THE AUTHOR MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY
+    OF THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+    THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+    PURPOSE, OR NON-INFRINGEMENT. STEFANO FORNARI SHALL NOT BE LIABLE FOR ANY
+    DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR DISTRIBUTING
+    THIS SOFTWARE OR ITS DERIVATIVES.
 
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -24,14 +29,14 @@
     </properties>
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.sshtools</groupId>
+    <groupId>com.github.stefanofornari</groupId>
     <artifactId>vfs2nio</artifactId>
     <version>0.9.0-SNAPSHOT</version>
     <name>Vfs2Nio</name>
     <description>Library that bridges Commons VFS 2 to Java's NIO.2 virtual file system</description>
     <url>https://jadaptive.com</url>
     <packaging>jar</packaging>
-    <inceptionYear>2018</inceptionYear>
+    <inceptionYear>2023</inceptionYear>
 
     <distributionManagement>
         <snapshotRepository>
@@ -46,20 +51,24 @@
 
     <licenses>
         <license>
-            <name>Apache License Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+            <name>European Union Public License</name>
+            <url>https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
     <scm>
-        <url>scm:https://github.com/sshtools/vfs2nio</url>
-        <connection>scm:https://github.com/sshtools/vfs2nio.git</connection>
+        <url>scm:https://github.com/stefanofornari/vfs2nio</url>
+        <connection>scm:https://github.com/stefanofornari/vfs2nio.git</connection>
     </scm>
     <developers>
         <developer>
             <id>brett</id>
             <name>Brett Smith</name>
             <email>brett@sshtools.com</email>
+        </developer>
+        <developer>
+            <id>ste</id>
+            <name>Stefano Fornari</name>
         </developer>
     </developers>
 
@@ -115,32 +124,6 @@
                             <phase>verify</phase>
                             <goals>
                                 <goal>sign</goal>
-                            </goals>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
-                    <groupId>com.mycila</groupId>
-                    <artifactId>license-maven-plugin</artifactId>
-                    <version>4.1</version>
-                    <configuration>
-                        <header>templates/APACHE-2.txt</header>
-                        <properties>
-                            <year>${year}</year>
-                            <owner>SSHTOOLS Limited</owner>
-                            <email>support@sshtools.com</email>
-                        </properties>
-                        <excludes>
-                            <exclude>**/README*</exclude>
-                            <exclude>src/main/java/org/apache/**</exclude>
-                            <exclude>src/test/resources/**</exclude>
-                            <exclude>src/main/resources/**</exclude>
-                        </excludes>
-                    </configuration>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>format</goal>
                             </goals>
                         </execution>
                     </executions>
@@ -259,6 +242,15 @@
             <artifactId>commons-vfs2</artifactId>
             <version>2.9.0</version>
         </dependency>
+        <dependency>
+            <!--
+                This is to be able to use tar: tgz: and zip: schemes
+            -->
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.25.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>junit</groupId>
@@ -267,39 +259,11 @@
             <type>jar</type>
             <scope>test</scope>
         </dependency>
-        
-        
         <dependency>
-            <groupId>com.sshtools</groupId>
-            <artifactId>sshapi-commons-vfs</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>com.sshtools</groupId>
-            <artifactId>sshapi-maverick-synergy</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
-        </dependency>
-
-        <!-- The following is for JPMS's sake. ALL possible runtime libraries
-        must be available at compile time, otherwise they cannot be added to 
-        the module-info. If they are not in module-info, they cannot be seen by default by applications
-        that are using the module path. So we make they are available, and declared in module-info
-        as 'static' dependencies (i.e. optional). The user should then be able to just include 
-        the required libraries at runtime without further JPMS configuration tweaks.-->
-        
-        <!--
-        <dependency>
-            <groupId>com.jcraft</groupId>
-            <artifactId>jsch</artifactId>
-            <version>0.1.55</version>
-            <scope>provided</scope>
-        </dependency>
-        -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-            <version>1.21</version>
-            <scope>provided</scope>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.24.2</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
