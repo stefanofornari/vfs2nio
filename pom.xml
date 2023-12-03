@@ -58,7 +58,7 @@
     </licenses>
     <scm>
         <url>scm:https://github.com/stefanofornari/vfs2nio</url>
-        <connection>scm:git:git@github.com/stefanofornari/vfs2nio</connection>
+        <connection>scm:git:git@github.com:stefanofornari/vfs2nio.git</connection>
       <tag>vfs2nio-0.9.1</tag>
   </scm>
     <developers>
