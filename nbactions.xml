@@ -44,7 +44,7 @@
         </activatedProfiles>
         <properties>
             <arguments>-DskipTests -Dmaven.javadoc.skip=true</arguments>
-            <goals>install</goals>
+            <goals>deploy</goals>
         </properties>
     </action>
 </actions>
