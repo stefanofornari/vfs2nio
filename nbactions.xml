@@ -39,9 +39,9 @@
         <goals>
             <goal>release:perform</goal>
         </goals>
-        <profiles>
-            <profle>deploy</profle>
-        </profiles>
+        <activatedProfiles>
+            <activatedProfile>deploy</activatedProfile>
+        </activatedProfiles>
         <properties>
             <arguments>-DskipTests -Dmaven.javadoc.skip=true</arguments>
             <goals>install</goals>
