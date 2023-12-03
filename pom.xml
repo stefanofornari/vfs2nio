@@ -31,7 +31,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.stefanofornari</groupId>
     <artifactId>vfs2nio</artifactId>
-    <version>0.10.1-SNAPSHOT</version>
+    <version>0.10.2-SNAPSHOT</version>
     <name>Vfs2Nio</name>
     <description>Library that bridges Commons VFS 2 to Java's NIO.2 virtual file system</description>
     <url>https://jadaptive.com</url>
@@ -135,7 +135,7 @@
                     <version>1.6.13</version>
                     <extensions>true</extensions>
                     <configuration>
-                        <serverId>ossrh</serverId>
+                        <serverId>ossrh-sshtools</serverId>
                         <nexusUrl>https://oss.sonatype.org/</nexusUrl>
                         <autoReleaseAfterClose>true</autoReleaseAfterClose>
                     </configuration>
