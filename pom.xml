@@ -31,7 +31,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.stefanofornari</groupId>
     <artifactId>vfs2nio</artifactId>
-    <version>0.9.1</version>
+    <version>0.9.0-SNAPSHOT</version>
     <name>Vfs2Nio</name>
     <description>Library that bridges Commons VFS 2 to Java's NIO.2 virtual file system</description>
     <url>https://jadaptive.com</url>
@@ -58,9 +58,8 @@
     </licenses>
     <scm>
         <url>scm:https://github.com/stefanofornari/vfs2nio</url>
-        <connection>scm:git:git@github.com:stefanofornari/vfs2nio.git</connection>
-      <tag>vfs2nio-0.9.1</tag>
-  </scm>
+        <connection>scm:git:git@github.com/stefanofornari/vfs2nio</connection>
+    </scm>
     <developers>
         <developer>
             <id>brett</id>
