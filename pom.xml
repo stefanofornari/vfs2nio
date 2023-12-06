@@ -29,7 +29,7 @@
     </properties>
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.github.stefanofornari</groupId>
+    <groupId>io.github.stefanofornari</groupId>
     <artifactId>vfs2nio</artifactId>
     <version>0.10.1-SNAPSHOT</version>
     <name>Vfs2Nio</name>
