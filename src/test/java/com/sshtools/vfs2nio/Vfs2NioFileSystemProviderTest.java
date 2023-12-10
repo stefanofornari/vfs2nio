@@ -20,6 +20,8 @@
  */
 package com.sshtools.vfs2nio;
 
+import static com.sshtools.vfs2nio.Vfs2NioFileSystemProvider.PASSWORD;
+import static com.sshtools.vfs2nio.Vfs2NioFileSystemProvider.USERNAME;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -32,6 +34,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystemAlreadyExistsException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,19 +42,96 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockftpserver.fake.FakeFtpServer;
+import org.mockftpserver.fake.UserAccount;
+import org.mockftpserver.fake.filesystem.FileEntry;
+import org.mockftpserver.fake.filesystem.UnixFakeFileSystem;
 
-public class Vfs2NioFileSystemProviderTest {
+public class Vfs2NioFileSystemProviderTest extends Vfs2NioTestBase {
 
     File rootFile = new File(File.separator);
 
+    private static final String HOME_DIR = "/public";
+    private static final String FILE = "/public/dir/sample.txt";
+    private static final String CONTENT = "abcdef 1234567890";
+
+    private static FakeFtpServer FTP;
+
+    @BeforeClass
+    public static void before_all() throws Exception {
+        FTP = new FakeFtpServer();
+        FTP.setServerControlPort(0);  // use any free port
+
+        org.mockftpserver.fake.filesystem.FileSystem fileSystem = new UnixFakeFileSystem();
+        fileSystem.add(new FileEntry(FILE, CONTENT));
+        FTP.setFileSystem(fileSystem);
+
+        UserAccount userAccount = new UserAccount("anonymous", "anonymous", HOME_DIR);
+        FTP.addUserAccount(userAccount);
+
+        FTP.start();
+    }
+
+    @AfterClass
+    public static void after_all() throws Exception {
+        FTP.stop();
+    }
+
     @Test
-    public void testCreateFolder() throws Exception {
+    public void create_and_get_file_systems() throws IOException {
+        URI uri1 = URI.create("vfs:" + rootFile.toURI().toString());
+        FileSystem fs = FileSystems.newFileSystem(uri1, Collections.EMPTY_MAP);
+
+        then(fs).isNotNull().isInstanceOf(Vfs2NioFileSystem.class);
+
+        thenThrownBy(() -> FileSystems.newFileSystem(uri1, Collections.EMPTY_MAP))
+                .isInstanceOf(FileSystemAlreadyExistsException.class)
+                .hasMessage("A file system for file:/// has been already created; use getFileSystem()");
+
+        URI uri2 = URI.create("vfs:" + new File("").getAbsoluteFile().toURI().toString());
+        thenThrownBy(() -> FileSystems.newFileSystem(uri2, Collections.EMPTY_MAP))
+                .isInstanceOf(FileSystemAlreadyExistsException.class)
+                .hasMessage("A file system for file:/// has been already created; use getFileSystem()");
+        then(FileSystems.getFileSystem(uri2)).isNotNull().isInstanceOf(Vfs2NioFileSystem.class);
+    }
+
+    @Test
+    public void extract_root_from_uri() throws Exception {
+        Vfs2NioFileSystemProvider provider = new Vfs2NioFileSystemProvider();
+
+        URI uri = URI.create("vfs:" + new File("").toURI());
+        Vfs2NioFileSystem fs = provider.newFileSystem(uri, Collections.EMPTY_MAP);
+        then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:file:///"));
+        fs.close();
+
+        String tar = new File("src/test/fs/test.tar").getAbsolutePath();
+        uri = URI.create("vfs:tar://" + tar);
+        fs = provider.newFileSystem(uri, Collections.EMPTY_MAP);
+        then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
+        fs.close();
+
+        Map<String, String> env = new HashMap<>();
+        env.put(USERNAME, "anonymous");
+        env.put(PASSWORD, "");
+        uri = URI.create("vfs:ftp://localhost:" + FTP.getServerControlPort() + "/public");
+        fs = provider.newFileSystem(uri, env);
+        then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:ftp://localhost:" + FTP.getServerControlPort() + "/"));
+        fs.close();
+    }
+
+    @Test
+    public void create_folder() throws Exception {
         try (FileSystem rootFs = createRootVFS()) {
             String randpath = System.getProperty("java.io.tmpdir") + "/"
                     + String.valueOf((long) (Math.abs(Math.random() * 100000)));
@@ -89,7 +169,7 @@ public class Vfs2NioFileSystemProviderTest {
     public void testFileReadUri() throws Exception {
         File file = File.createTempFile("vfs", "tmp");
         writeTestFile(file);
-        Path path = Paths.get(new URI("vfs:" + file.toURI().toString()));
+        Path path = Paths.get(new URI("vfs:file://" + file.getAbsolutePath()));
         try (InputStream in = Files.newInputStream(path)) {
             try (InputStream origIn = new FileInputStream(file)) {
                 compareStreams(origIn, in);
@@ -125,7 +205,7 @@ public class Vfs2NioFileSystemProviderTest {
             for (Path p : fs.getRootDirectories()) {
                 try (DirectoryStream<Path> d = Files.newDirectoryStream(p)) {
                     for (Path dp : d) {
-                        names.add(dp.getFileName().toString().substring(1));
+                        names.add(dp.getFileName().toString());
                     }
                 }
             }
@@ -139,36 +219,38 @@ public class Vfs2NioFileSystemProviderTest {
     }
 
     @Test
-    public void test_tar_navigation() throws IOException {
+    public void tar_navigation() throws IOException {
         String tar = new File("src/test/fs/test.tar").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:tar://" + tar));
         then(path).isNotNull();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
 
         path = Files.list(path).findFirst().get();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir/subdir", "/dir/afile.txt");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir/subdir", "dir/afile.txt");
     }
 
     @Test
-    public void test_tgz_navigation() throws IOException {
+    public void tgz_navigation() throws IOException {
         String tar = new File("src/test/fs/test.tgz").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:tgz://" + tar));
         then(path).isNotNull();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
 
         path = Files.list(path).findFirst().get();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir/subdir", "/dir/afile.txt");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir/subdir", "dir/afile.txt");
+
+        path.getFileSystem().close();
     }
 
     @Test
-    public void test_zip_navigation() throws IOException {
+    public void zip_navigation() throws IOException {
         String tar = new File("src/test/fs/test.zip").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:zip://" + tar));
         then(path).isNotNull();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
 
         path = Files.list(path).findFirst().get();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir/subdir", "/dir/afile.txt");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir/subdir", "dir/afile.txt");
     }
 
     private void compareStreams(InputStream expected, InputStream actual) throws IOException {
@@ -184,6 +266,19 @@ public class Vfs2NioFileSystemProviderTest {
         }
     }
 
+    @Test
+    public void all_absolute_path() throws IOException {
+        Path here = Paths.get(URI.create("vfs:" + new File("").getAbsoluteFile().toURI()));
+
+        then(here.isAbsolute()).isTrue();
+        then(here).isEqualTo(here.toAbsolutePath());
+
+        Path firstChild = Files.list(here).findFirst().get();
+        then(firstChild.isAbsolute()).isTrue();
+        then(firstChild).isEqualTo(firstChild.toAbsolutePath());
+    }
+
+    // --------------------------------------------------------- private methods
     private FileSystem createRootVFS() throws IOException {
         URI uri = URI.create("vfs:" + rootFile.toURI().toString());
         FileSystem fs = FileSystems.newFileSystem(uri, Collections.EMPTY_MAP);

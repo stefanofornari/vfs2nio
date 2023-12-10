@@ -74,6 +74,7 @@ import org.apache.commons.vfs2.impl.DefaultFileSystemConfigBuilder;
 import org.apache.commons.vfs2.util.RandomAccessMode;
 
 public class Vfs2NioFileSystemProvider extends FileSystemProvider {
+
     public final static String FILE_SYSTEM_OPTIONS = "com.sshtools.vfs2nio.fileSystemOptions";
     public final static String VFS_MANAGER = "com.sshtools.vfs2nio.vfsManager";
     public final static String AUTHENTICATOR = "com.sshtools.vfs2nio.vfsAuthenticator";
@@ -83,14 +84,16 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     // Checks that the given file is a UnixPath
     static final Vfs2NioPath toVFSPath(Path path) {
-        if (path == null)
+        if (path == null) {
             throw new NullPointerException();
-        if (!(path instanceof Vfs2NioPath))
+        }
+        if (!(path instanceof Vfs2NioPath)) {
             throw new ProviderMismatchException();
+        }
         return (Vfs2NioPath) path;
     }
 
-    private final Map<URI, Vfs2NioFileSystem> filesystems = Collections.synchronizedMap(new HashMap<>());
+    protected static final Map<FileObject, Vfs2NioFileSystem> filesystems = Collections.synchronizedMap(new HashMap<>());
 
     protected static final long TRANSFER_SIZE = 8192;
 
@@ -103,22 +106,25 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         var fo = p.toFileObject();
         for (AccessMode m : modes) {
             switch (m) {
-            case EXECUTE:
-                break;
-            case READ:
-                if (!fo.isReadable())
-                    throw new AccessDeniedException(String.format("No %s access to %s", m, path));
-                break;
-            case WRITE:
-                if (!fo.isWriteable())
-                    throw new AccessDeniedException(String.format("No %s access to %s", m, path));
-                break;
-            default:
-                break;
+                case EXECUTE:
+                    break;
+                case READ:
+                    if (!fo.isReadable()) {
+                        throw new AccessDeniedException(String.format("No %s access to %s", m, path));
+                    }
+                    break;
+                case WRITE:
+                    if (!fo.isWriteable()) {
+                        throw new AccessDeniedException(String.format("No %s access to %s", m, path));
+                    }
+                    break;
+                default:
+                    break;
             }
         }
-        if(modes.length == 0 && !fo.exists())
+        if (modes.length == 0 && !fo.exists()) {
             throw new NoSuchFileException(path.toString());
+        }
     }
 
     @Override
@@ -135,8 +141,9 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         var p = toVFSPath(path);
         checkAccess(p, AccessMode.WRITE);
         var fo = p.toFileObject();
-        if (fo.exists())
+        if (fo.exists()) {
             throw new FileAlreadyExistsException(p.toString());
+        }
         fo.createFolder();
     }
 
@@ -160,29 +167,52 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileSystem getFileSystem(URI uri) {
-        synchronized (filesystems) {
-            Vfs2NioFileSystem vfs = null;
-            var path = toFsUri(uri);
-            vfs = filesystems.get(path);
-            if (vfs == null)
-                throw new FileSystemNotFoundException(String.format("Cannot find file system for %s", uri));
-            return vfs;
+        try {
+            synchronized (filesystems) {
+                Vfs2NioFileSystem vfs = null;
+
+                var path = toFsUri(uri);
+
+                vfs = filesystems.get(
+                    VFS.getManager().resolveFile(path).getFileSystem().getRoot()
+                );
+                if (vfs == null) {
+                    throw new FileSystemNotFoundException(String.format("Cannot find file system for %s", uri));
+                }
+                return vfs;
+            }
+        } catch (IOException x) {
+            throw new FileSystemNotFoundException(x.getMessage());
         }
     }
 
     @Override
     public Path getPath(URI uri) {
-        FileSystem fileSystem;
+        Vfs2NioFileSystem fileSystem;
         try {
-            fileSystem = getFileSystem(uri);
+            fileSystem = (Vfs2NioFileSystem) getFileSystem(uri);
         } catch (FileSystemNotFoundException fsnfe) {
             try {
-                fileSystem = newFileSystem(uri, new HashMap<>());
+                fileSystem = (Vfs2NioFileSystem) newFileSystem(uri, new HashMap<>());
             } catch (IOException e) {
                 throw new Vfs2NioException("Failed to create new file system.", e);
             }
         }
-        return fileSystem.getPath(toFsUri(uri).getSchemeSpecificPart());
+
+        //
+        // Create a relative path from the given path and the determined root
+        //
+        String root = fileSystem.root.getPublicURIString();
+        String rootPath = root.substring(root.indexOf(":///")+4);
+        if (rootPath.endsWith("/")) {
+            rootPath = rootPath.substring(0, rootPath.length()-1);
+        }
+        if (rootPath.endsWith("!")) {
+            rootPath = rootPath.substring(0, rootPath.length()-1);
+        }
+        String uriPath = uri.toString().substring(uri.toString().indexOf(":///")+4);
+
+        return fileSystem.getPath(uriPath.replaceFirst("^" + rootPath, ""));
     }
 
     @Override
@@ -231,11 +261,12 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             throws IOException {
         /* TODO support more options */
         var fileObject = toVFSPath(path).toFileObject();
-        if (fileObject.exists() && options.contains(StandardOpenOption.CREATE_NEW))
+        if (fileObject.exists() && options.contains(StandardOpenOption.CREATE_NEW)) {
             throw new FileAlreadyExistsException(path.toString());
-        else if (!fileObject.exists()
-                && (options.contains(StandardOpenOption.CREATE_NEW) || options.contains(StandardOpenOption.CREATE)))
+        } else if (!fileObject.exists()
+                && (options.contains(StandardOpenOption.CREATE_NEW) || options.contains(StandardOpenOption.CREATE))) {
             fileObject.createFile();
+        }
         var content = fileObject.getContent();
         var rac = content.getRandomAccessContent(toRandomAccessMode(options));
         return new FileChannel() {
@@ -244,8 +275,9 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             public int read(ByteBuffer dst) throws IOException {
                 var arr = new byte[dst.remaining()];
                 int r = rac.getInputStream().read(arr, 0, arr.length);
-                if(r > 0)
+                if (r > 0) {
                     dst.put(arr, 0, r);
+                }
                 return r;
             }
 
@@ -255,8 +287,9 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                 for (var dst : dsts) {
                     var arr = new byte[dst.remaining()];
                     int r = rac.getInputStream().read(arr, offset, length);
-                    if(r > 0)
+                    if (r > 0) {
                         dst.put(arr, 0, r);
+                    }
                     t += r;
                 }
                 return t;
@@ -319,22 +352,25 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                     while (tw < count) {
                         bb.limit((int) Math.min(count - tw, TRANSFER_SIZE));
                         int nr = read(bb, pos);
-                        if (nr <= 0)
+                        if (nr <= 0) {
                             break;
+                        }
                         bb.flip();
                         // ## Bug: Will block writing target if this channel
                         // ## is asynchronously closed
                         int nw = target.write(bb);
                         tw += nw;
-                        if (nw != nr)
+                        if (nw != nr) {
                             break;
+                        }
                         pos += nw;
                         bb.clear();
                     }
                     return tw;
                 } catch (IOException x) {
-                    if (tw > 0)
+                    if (tw > 0) {
                         return tw;
+                    }
                     throw x;
                 }
             }
@@ -352,20 +388,23 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                         // ## Bug: Will block reading src if this channel
                         // ## is asynchronously closed
                         int nr = src.read(bb);
-                        if (nr <= 0)
+                        if (nr <= 0) {
                             break;
+                        }
                         bb.flip();
                         int nw = write(bb, pos);
                         tw += nw;
-                        if (nw != nr)
+                        if (nw != nr) {
                             break;
+                        }
                         pos += nw;
                         bb.clear();
                     }
                     return tw;
                 } catch (IOException x) {
-                    if (tw > 0)
+                    if (tw > 0) {
                         return tw;
+                    }
                     throw x;
                 }
             }
@@ -407,29 +446,28 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     private RandomAccessMode toRandomAccessMode(Set<? extends OpenOption> options) {
         if (options.contains(StandardOpenOption.WRITE) || options.contains(StandardOpenOption.CREATE)
-                || options.contains(StandardOpenOption.CREATE_NEW))
+                || options.contains(StandardOpenOption.CREATE_NEW)) {
             return RandomAccessMode.READWRITE;
+        }
         return RandomAccessMode.READ;
     }
 
     @Override
-    public FileSystem newFileSystem(Path path, Map<String, ?> env) throws IOException {
+    public Vfs2NioFileSystem newFileSystem(Path path, Map<String, ?> env) throws IOException {
         return newFileSystem(path.toUri(), env);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
+    public Vfs2NioFileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
         var path = toFsUri(uri);
-        if (filesystems.containsKey(path))
-            throw new FileSystemAlreadyExistsException();
+
         synchronized (filesystems) {
-            var mgr = env == null ? null : (FileSystemManager) env.get(VFS_MANAGER);
-            if (mgr == null)
-                mgr = VFS.getManager();
-            var opts = env == null ? null : (FileSystemOptions) env.get(FILE_SYSTEM_OPTIONS);
-            if (opts == null)
+            FileSystemManager mgr = VFS.getManager();
+            var opts = (env == null) ? null : (FileSystemOptions) env.get(FILE_SYSTEM_OPTIONS);
+            if (opts == null) {
                 opts = new FileSystemOptions();
+            }
             if (!Arrays.asList(mgr.getSchemes()).contains(path.getScheme())) {
                 /*
                  * TODO monitor state of Commons VFS JPMS compatibility for adjustments to
@@ -440,11 +478,12 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                         path.getScheme(), String.join(", ", mgr.getSchemes())));
             }
             var auth = (UserAuthenticator) env.get(AUTHENTICATOR);
-            if (auth != null)
+            if (auth != null) {
                 DefaultFileSystemConfigBuilder.getInstance().setUserAuthenticator(opts, auth);
-            else/* if (path.getUserInfo() == null) */
+            } else {
                 DefaultFileSystemConfigBuilder.getInstance().setUserAuthenticator(opts,
                         new UA(uri, (Map<String, Object>) env));
+            }
 
             /*
              * First resolve the URI without a path. For Commons VFS, this may either be the
@@ -457,20 +496,21 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
              * Due to how Commons VFS works, we cannot support relative paths from the user
              * homes directory.
              */
-            FileObject foRoot = null;
-            var root = toPathlessURI(path);
+            FileObject root = null;
+
             try {
-                foRoot = mgr.resolveFile(root.toString(), opts);
-                if (path.getPath() != null) {
-                    foRoot = foRoot.resolveFile(path.getPath().substring(1));
-                }
+                root = mgr.resolveFile(path).getFileSystem().getRoot();
             } catch (FileSystemException x) {
-                foRoot = mgr.resolveFile(path.toString(), opts);
+                root = mgr.resolveFile(path.toString(), opts);
             }
 
-            var vfs = new Vfs2NioFileSystem(this, foRoot, path);
+            if (filesystems.containsKey(root)) {
+                throw new FileSystemAlreadyExistsException("A file system for " + root + " has been already created; use getFileSystem()");
+            }
 
-            filesystems.put(path, vfs);
+            var vfs = new Vfs2NioFileSystem(this, root, path);
+
+            filesystems.put(root, vfs);
             return vfs;
         }
     }
@@ -478,9 +518,10 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     @Override
     public InputStream newInputStream(Path path, OpenOption... options) throws IOException {
         var optlist = Arrays.asList(options);
-        if (optlist.contains(StandardOpenOption.WRITE))
+        if (optlist.contains(StandardOpenOption.WRITE)) {
             throw new IllegalArgumentException(
                     String.format("%s is not supported by this method.", StandardOpenOption.WRITE));
+        }
         checkAccess(path, AccessMode.READ);
         return toVFSPath(path).toFileObject().getContent().getInputStream();
     }
@@ -488,13 +529,15 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     @Override
     public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
         var optlist = Arrays.asList(options);
-        if (optlist.contains(StandardOpenOption.READ))
+        if (optlist.contains(StandardOpenOption.READ)) {
             throw new IllegalArgumentException(
                     String.format("%s is not supported by this method.", StandardOpenOption.READ));
+        }
         var fo = toVFSPath(path).toFileObject();
-        if (optlist.contains(StandardOpenOption.CREATE_NEW) && fo.exists())
+        if (optlist.contains(StandardOpenOption.CREATE_NEW) && fo.exists()) {
             throw new IOException(String.format("%s already exists, and the option %s was specified.", fo,
                     StandardOpenOption.CREATE_NEW));
+        }
         checkAccess(path, AccessMode.WRITE);
         return fo.getContent().getOutputStream(optlist.contains(StandardOpenOption.APPEND));
     }
@@ -503,8 +546,9 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     @Override
     public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options)
             throws IOException {
-        if (type == BasicFileAttributes.class || type == Vfs2NioFileAttributes.class)
+        if (type == BasicFileAttributes.class || type == Vfs2NioFileAttributes.class) {
             return (A) toVFSPath(path).getAttributes();
+        }
         return null;
     }
 
@@ -524,8 +568,11 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     }
 
     protected URI toPathlessURI(URI uri) {
+        String root = null, plainUri = uri.toString();
+
+        root = (plainUri.endsWith("tar")) ? uri.getPath() : File.separator;
         try {
-            return new URI(uri.getScheme(), uri.getAuthority(), File.separator, uri.getQuery(), uri.getFragment());
+            return new URI(uri.getScheme(), uri.getAuthority(), root, uri.getQuery(), uri.getFragment());
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
@@ -539,8 +586,9 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         try {
             var spec = uri.getRawSchemeSpecificPart();
             int sep = spec.indexOf("!/");
-            if (sep != -1)
+            if (sep != -1) {
                 spec = spec.substring(0, sep);
+            }
             var u = new URI(spec);
             return u;
         } catch (URISyntaxException e) {
@@ -548,26 +596,8 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         }
     }
 
-//    protected Path XXuriToPath(URI uri) {
-//        var scheme = uri.getScheme();
-//        if ((scheme == null) || !scheme.equalsIgnoreCase(getScheme())) {
-//            throw new IllegalArgumentException("URI scheme is not '" + getScheme() + "'");
-//        }
-//        try {
-//            // only support legacy JAR URL syntax vfs:{uri}!/{entry} for now
-//            var spec = uri.getSchemeSpecificPart();
-//            int sep = spec.indexOf("!/");
-//            if (sep != -1)
-//                spec = spec.substring(0, sep);
-//            var u = new URI(spec);
-//            return Paths.get(u).toAbsolutePath();
-//        } catch (URISyntaxException e) {
-//            throw new IllegalArgumentException(e.getMessage(), e);
-//        }
-//    }
-
-    void removeFileSystem(URI path) throws IOException {
-        filesystems.remove(path);
+    void removeFileSystem(Vfs2NioFileSystem fs) throws IOException {
+        filesystems.remove(fs.root);
     }
 
     static class UA implements UserAuthenticator {
@@ -588,12 +618,13 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             var domain = env == null ? null : (String) env.get(DOMAIN);
             char[] password = null;
             var pwobj = env == null ? null : env.get(PASSWORD);
-            if (pwobj instanceof String)
+            if (pwobj instanceof String) {
                 password = ((String) pwobj).toCharArray();
-            else if (pwobj instanceof char[])
+            } else if (pwobj instanceof char[]) {
                 password = ((char[]) pwobj);
-            else if (pwobj != null)
+            } else if (pwobj != null) {
                 password = pwobj.toString().toCharArray();
+            }
 
             if (uri.getUserInfo() != null) {
                 username = uri.getUserInfo();
@@ -637,8 +668,9 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                                     ud.setData(UserAuthenticationData.DOMAIN, domain.toCharArray());
                                 }
                             }
-                        } else
+                        } else {
                             throw new IllegalArgumentException("No username. Aborted.");
+                        }
                     }
                 }
                 ud.setData(UserAuthenticationData.USERNAME, username.toCharArray());
@@ -659,4 +691,5 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             return ud;
         }
     }
+
 }

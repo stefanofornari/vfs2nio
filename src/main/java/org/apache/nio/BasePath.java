@@ -20,7 +20,6 @@
  */
 package org.apache.nio;
 
-import com.sshtools.vfs2nio.Vfs2NioFileSystem;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -47,25 +46,23 @@ import java.util.Objects;
 public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFileSystem<T, P>, P extends FileSystemProvider> implements Path {
 
     protected final ImmutableList<String> names;
-    protected final String root;
     private final FS fileSystem;
 
 
-    public BasePath(FS fileSystem, String root, ImmutableList<String> names) {
+    public BasePath(FS fileSystem, ImmutableList<String> names) {
         this.fileSystem = fileSystem;
-        this.root = root;
         this.names = names;
     }
 
     public BasePath(FS fileSystem, String root, String... names) {
-    	this(fileSystem, root, new ImmutableList<>(names));
+    	this(fileSystem, new ImmutableList<>(names));
     }
 
     @Override
     public int compareTo(Path paramPath) {
         T p1 = asT();
         T p2 = checkPath(paramPath);
-        int c = compare(p1.root, p2.root);
+        int c = compare(p1.getRoot().toString(), p2.getRoot().toString());
         if (c != 0) {
             return c;
         }
@@ -120,7 +117,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         if ((index < 0) || (index >= maxIndex)) {
             throw new IllegalArgumentException("Invalid name index " + index + " - not in range [0-" + maxIndex + "]");
         }
-        return create(null, names.subList(index, index + 1));
+        return create(names.subList(index, index + 1));
     }
 
     @Override
@@ -130,16 +127,16 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
 
     @Override
     public T getParent() {
-        if (names.isEmpty() || ((names.size() == 1) && (root == null))) {
+        if (names.isEmpty() || ((names.size() == 1) && (getRoot() == null))) {
             return null;
         }
-        return create(root, names.subList(0, names.size() - 1));
+        return create(names.subList(0, names.size() - 1));
     }
 
     @Override
     public T getRoot() {
         if (isAbsolute()) {
-            return create(root);
+            return fileSystem.getRoot();
         }
         return null;
     }
@@ -148,7 +145,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
     public int hashCode() {
         int hash = Objects.hashCode(getFileSystem());
         // use hash codes from toString() form of names
-        hash = 31 * hash + Objects.hashCode(root);
+        hash = 31 * hash + Objects.hashCode(getRoot());
         for (String name : names) {
             hash = 31 * hash + Objects.hashCode(name);
         }
@@ -157,7 +154,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
 
     @Override
     public boolean isAbsolute() {
-        return root != null;
+        return getParent() == null;
     }
 
     @Override
@@ -196,7 +193,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
             }
         }
 
-        return newNames.equals(names) ? asT() : create(root, newNames);
+        return newNames.equals(names) ? asT() : create(newNames);
     }
 
     @Override
@@ -217,9 +214,9 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
             throw new IllegalArgumentException("Paths have different roots: " + this + ", " + other);
         }
         if (p2.equals(p1)) {
-            return create(null);
+            return create();
         }
-        if (p1.root == null && p1.names.isEmpty()) {
+        if (p1.getRoot() == null && p1.names.isEmpty()) {
             return p2;
         }
         // Common subsequence
@@ -240,7 +237,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         parts.addAll(Collections.nCopies(extraNamesInThis, ".."));
         // add each extra name in the other path
         parts.addAll(extraNamesInOther);
-        return create(null, parts);
+        return create(parts);
     }
 
     @Override
@@ -261,7 +258,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         for (String p : p2.names) {
             names[index++] = p;
         }
-        return create(p1.root, names);
+        return create(names);
     }
 
     @Override
@@ -285,7 +282,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         T p1 = asT();
         T p2 = checkPath(other);
         return Objects.equals(p1.getFileSystem(), p2.getFileSystem())
-                && Objects.equals(p1.root, p2.root)
+                && Objects.equals(p1.getRoot(), p2.getRoot())
                 && startsWith(p1.names, p2.names);
     }
 
@@ -300,7 +297,7 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         if ((beginIndex < 0) || (beginIndex >= maxIndex) || (endIndex > maxIndex) || (beginIndex >= endIndex)) {
             throw new IllegalArgumentException("subpath(" + beginIndex + "," + endIndex + ") bad index range - allowed [0-" + maxIndex + "]");
         }
-        return create(null, names.subList(beginIndex, endIndex));
+        return create(names.subList(beginIndex, endIndex));
     }
 
     @Override
@@ -319,24 +316,17 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (root != null) {
-            sb.append(root);
+        if (getRoot() != null) {
+            sb.append(getRoot());
         }
 
-        String separator = getFileSystem().getSeparator();
-        for (String name : names) {
-            if ((sb.length() > 0) && (sb.charAt(sb.length() - 1) != '/')) {
-                sb.append(separator);
-            }
-            sb.append(name);
-        }
+        sb.append(getPathname());
         return sb.toString();
     }
 
     @Override
     public URI toUri() {
-        Vfs2NioFileSystem fs = (Vfs2NioFileSystem)fileSystem;
-        return URI.create(fs.provider().getScheme() + ':' + fs.getRoot().getPublicURIString() + toString());
+        return URI.create(fileSystem.provider().getScheme() + ':' + getPathname());
     }
 
     @SuppressWarnings("unchecked")
@@ -366,16 +356,16 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         }
     }
 
-    protected T create(String root, Collection<String> names) {
-        return create(root, new ImmutableList<>(names.toArray(new String[names.size()])));
+    protected T create(Collection<String> names) {
+        return create(new ImmutableList<>(names.toArray(new String[names.size()])));
     }
 
-    protected T create(String root, ImmutableList<String> names) {
-        return fileSystem.create(root, names);
+    protected T create(ImmutableList<String> names) {
+        return fileSystem.create(names);
     }
 
-    protected T create(String root, String... names) {
-        return create(root, new ImmutableList<>(names));
+    protected T create(String... names) {
+        return create(new ImmutableList<>(names));
     }
 
     protected boolean endsWith(List<?> list, List<?> other) {
@@ -410,4 +400,19 @@ public abstract class BasePath<T extends BasePath<T, FS, P>, FS extends BaseFile
         return list.size() >= other.size() && list.subList(0, other.size()).equals(other);
     }
 
+    private String getPathname() {
+        if (names.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        String separator = getFileSystem().getSeparator();
+        for (String name : names) {
+            if ((sb.length() > 0) && (sb.charAt(sb.length() - 1) != '/')) {
+                sb.append(separator);
+            }
+            sb.append(name);
+        }
+
+        return sb.toString();
+    }
 }

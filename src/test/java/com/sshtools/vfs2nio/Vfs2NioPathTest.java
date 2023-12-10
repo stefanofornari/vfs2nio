@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.FileSystems;
+import java.nio.file.Paths;
 import java.util.Collections;
 import static org.assertj.core.api.BDDAssertions.then;
 import org.junit.Test;
@@ -31,7 +32,7 @@ import org.junit.Test;
 /**
  *
  */
-public class Vfs2NioPathTest {
+public class Vfs2NioPathTest extends Vfs2NioTestBase {
 
     @Test
     public void toUri() throws IOException {
@@ -43,7 +44,18 @@ public class Vfs2NioPathTest {
         String tar = new File("src/test/fs/test.tar").getAbsolutePath();
         uri = URI.create("vfs:tar://" + tar);
         fs = (Vfs2NioFileSystem)FileSystems.newFileSystem(uri, Collections.EMPTY_MAP);
+        then(new Vfs2NioPath(fs, "").toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
         then(new Vfs2NioPath(fs, "", "folder", "file.txt").toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/folder/file.txt"));
         fs.close();
+    }
+
+    @Test
+    public void new_path_from_Paths() {
+        URI uri = URI.create("vfs:file:///");
+        then(Paths.get(uri).toUri()).isEqualTo(uri);
+
+        String tar = new File("src/test/fs/test.tar").getAbsolutePath();
+        uri = URI.create("vfs:tar://" + tar);
+        then(Paths.get(uri).toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
     }
 }

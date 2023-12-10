@@ -22,78 +22,131 @@ package com.sshtools.vfs2nio;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.DirectoryStream.Filter;
 import java.nio.file.FileStore;
-import java.nio.file.Files;
+import java.nio.file.FileSystem;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
-import org.apache.nio.BaseFileSystem;
 import org.apache.nio.ImmutableList;
 
-public class Vfs2NioFileSystem extends BaseFileSystem<Vfs2NioPath, Vfs2NioFileSystemProvider> {
+public class Vfs2NioFileSystem extends FileSystem {
 
     private static final Set<String> supportedFileAttributeViews = Collections
             .unmodifiableSet(new HashSet<String>(Arrays.asList("basic", "vfs")));
     private boolean open = true;
-    private FileObject root;
 
-    private URI uri;
+    private final Vfs2NioFileSystemProvider fileSystemProvider;
 
-    public Vfs2NioFileSystem(Vfs2NioFileSystemProvider provider, FileObject root, URI uri) throws FileSystemException {
-        super(provider);
+    protected FileObject root;
+    protected Path rootPath;
+
+    public Vfs2NioFileSystem(Vfs2NioFileSystemProvider fileSystemProvider, FileObject root) {
+        this.fileSystemProvider = fileSystemProvider;
         this.root = root;
-        this.uri = uri;
+        this.rootPath = fileObjectToPath(root);
     }
 
     @Override
-    public void close() throws IOException {
-        if (!open) {
-            throw new IOException("Not open");
-        }
-        open = false;
-        provider().removeFileSystem(uri);
+    public Iterable<FileStore> getFileStores() {
+        throw new UnsupportedOperationException("No file stores available");
     }
 
-    public Vfs2NioFileAttributes getFileAttributes(Vfs2NioPath path) {
-        return new Vfs2NioFileAttributes(pathToFileObject(path));
+    @Override
+    public Vfs2NioPath getPath(String first, String... more) {
+        StringBuilder sb = new StringBuilder();
+        if (first != null && first.length() > 0) {
+            appendDedupSep(sb, first.replace('\\', '/'));   // in case we are running on Windows
+        }
+
+        if (more.length > 0) {
+            for (String segment : more) {
+                if ((sb.length() > 0) && (sb.charAt(sb.length() - 1) != '/')) {
+                    sb.append('/');
+                }
+                // in case we are running on Windows
+                appendDedupSep(sb, segment.replace('\\', '/'));
+            }
+        }
+
+        if ((sb.length() > 1) && (sb.charAt(sb.length() - 1) == '/')) {
+            sb.setLength(sb.length() - 1);
+        }
+
+        String path = sb.toString();
+        if (path.startsWith("/")) {
+            path = path.substring(1);
+        }
+
+        String[] names = (path.length() > 0) ? path.split("/") : new String[0];
+
+        return create(names);
+    }
+
+    @Override
+    public PathMatcher getPathMatcher(String syntaxAndPattern) {
+        int colonIndex = syntaxAndPattern.indexOf(':');
+        if ((colonIndex <= 0) || (colonIndex == syntaxAndPattern.length() - 1)) {
+            throw new IllegalArgumentException("syntaxAndPattern must have form \"syntax:pattern\" but was \"" + syntaxAndPattern + "\"");
+        }
+
+        String syntax = syntaxAndPattern.substring(0, colonIndex);
+        String pattern = syntaxAndPattern.substring(colonIndex + 1);
+        String expr;
+        switch (syntax) {
+            case "glob":
+                expr = globToRegex(pattern);
+                break;
+            case "regex":
+                expr = pattern;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported path matcher syntax: \'" + syntax + "\'");
+        }
+        final Pattern regex = Pattern.compile(expr);
+        return new PathMatcher() {
+            @Override
+            public boolean matches(Path path) {
+                Matcher m = regex.matcher(path.toString());
+                return m.matches();
+            }
+        };
     }
 
     @Override
     public Iterable<Path> getRootDirectories() {
-        if (uri.getPath() == null) {
-            return super.getRootDirectories();
-        } else {
-            var uriPath = uri.getPath();
-            var fsRoot = getPath(uriPath);
-            return Collections.<Path>singleton(fsRoot);
-        }
+        return Collections.<Path>singleton(create("/"));
     }
 
-    public FileObject getRoot() {
-        return root;
+    @Override
+    public String getSeparator() {
+        return "/";
     }
 
-    public long getTotalSpace() {
-        // TODO from FileSystem attributes?
-        return 0;
+    @Override
+    public UserPrincipalLookupService getUserPrincipalLookupService() {
+        throw new UnsupportedOperationException("UserPrincipalLookupService is not supported.");
     }
 
-    public long getUnallocatedSpace() {
-        // TODO from FileSystem attributes?
-        return 0;
+    @Override
+    public WatchService newWatchService() throws IOException {
+        throw new UnsupportedOperationException("Watch service N/A");
     }
 
-    public long getUsableSpace() {
-        // TODO from FileSystem attributes?
-        return 0;
+    @Override
+    public Vfs2NioFileSystemProvider provider() {
+        return fileSystemProvider;
     }
 
     @Override
@@ -110,37 +163,152 @@ public class Vfs2NioFileSystem extends BaseFileSystem<Vfs2NioPath, Vfs2NioFileSy
         }
     }
 
+    @Override
+    public void close() throws IOException {
+        provider().removeFileSystem(this);
+        if (!open) {
+            throw new IOException("Not open");
+        }
+        open = false;
+    }
+
+    public Path getRoot() {
+        return rootPath;
+    }
+
+    public Path getDefaultDir() {
+        return rootPath;
+    }
+
+    protected void appendDedupSep(StringBuilder sb, CharSequence s) {
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if ((ch != '/') || (sb.length() == 0) || (sb.charAt(sb.length() - 1) != '/')) {
+                sb.append(ch);
+            }
+        }
+    }
+
+    protected Vfs2NioPath create(Collection<String> names) {
+        return create(new ImmutableList<>(names.toArray(new String[names.size()])));
+    }
+
+    protected Vfs2NioPath create(String... names) {
+        return create(new ImmutableList<>(names));
+    }
+
+    protected String globToRegex(String pattern) {
+        StringBuilder sb = new StringBuilder(pattern.length());
+        int inGroup = 0;
+        int inClass = 0;
+        int firstIndexInClass = -1;
+        char[] arr = pattern.toCharArray();
+        for (int i = 0; i < arr.length; i++) {
+            char ch = arr[i];
+            switch (ch) {
+                case '\\':
+                    if (++i >= arr.length) {
+                        sb.append('\\');
+                    } else {
+                        char next = arr[i];
+                        switch (next) {
+                            case ',':
+                                // escape not needed
+                                break;
+                            case 'Q':
+                            case 'E':
+                                // extra escape needed
+                                sb.append("\\\\");
+                                break;
+                            default:
+                                sb.append('\\');
+                                break;
+                        }
+                        sb.append(next);
+                    }
+                    break;
+                case '*':
+                    sb.append(inClass == 0 ? ".*" : "*");
+                    break;
+                case '?':
+                    sb.append(inClass == 0 ? '.' : '?');
+                    break;
+                case '[':
+                    inClass++;
+                    firstIndexInClass = i + 1;
+                    sb.append('[');
+                    break;
+                case ']':
+                    inClass--;
+                    sb.append(']');
+                    break;
+                case '.':
+                case '(':
+                case ')':
+                case '+':
+                case '|':
+                case '^':
+                case '$':
+                case '@':
+                case '%':
+                    if (inClass == 0 || (firstIndexInClass == i && ch == '^')) {
+                        sb.append('\\');
+                    }
+                    sb.append(ch);
+                    break;
+                case '!':
+                    sb.append(firstIndexInClass == i ? '^' : '!');
+                    break;
+                case '{':
+                    inGroup++;
+                    sb.append('(');
+                    break;
+                case '}':
+                    inGroup--;
+                    sb.append(')');
+                    break;
+                case ',':
+                    sb.append(inGroup > 0 ? '|' : ',');
+                    break;
+                default:
+                    sb.append(ch);
+            }
+        }
+        return sb.toString();
+    }
+
+
     //
-    // TODO: this iterator collects all children when created, which can be
-    // very resource consuming for big lists on remote file systems; we
-    // should make it lazy
-    public Iterator<Path> iterator(Path path, Filter<? super Path> filter) throws IOException {
-        //
-        // If we are here path.isDirectory() returned true(). If path.isRegularFile()
-        // returns true as well, it represents a "mounted" file like an archive
-        // or image. In such a case, we need to list the files inside the
-        // mount point (i.e. the path root).
-        //
-        var obj = (Files.isRegularFile(path)) ? root : pathToFileObject(Vfs2NioFileSystemProvider.toVFSPath(path));
-        var children = obj.getChildren(); // HERE
-        return new Iterator<Path>() {
-            int index;
+    // TODO: remove uri
+    //
+    private URI uri;
 
-            @Override
-            public boolean hasNext() {
-                return index < children.length;
-            }
+    public Vfs2NioFileSystem(Vfs2NioFileSystemProvider provider, FileObject root, URI uri) throws FileSystemException {
+        this(provider, root);
+        this.uri = uri;
+    }
 
-            @Override
-            public Path next() {
-//				var croot = path.getRoot();
-//				var f = path.getFileName();
-//				return new Vfs2NioPath(Vfs2NioFileSystem.this, croot.toString(),
-//						(f == null ? "" : f.toString() + "/") + children[index++].getName().getBaseName().toString());
+    public Vfs2NioFileAttributes getFileAttributes(Vfs2NioPath path) {
+        return new Vfs2NioFileAttributes(pathToFileObject(path));
+    }
 
-                return new Vfs2NioPath(Vfs2NioFileSystem.this, null, children[index++].getName().getPath());
-            }
-        };
+    public FileObject getRootObject() {
+        return root;
+    }
+
+    public long getTotalSpace() {
+        // TODO from FileSystem attributes?
+        return 0;
+    }
+
+    public long getUnallocatedSpace() {
+        // TODO from FileSystem attributes?
+        return 0;
+    }
+
+    public long getUsableSpace() {
+        // TODO from FileSystem attributes?
+        return 0;
     }
 
     public void setTimes(Vfs2NioPath path, FileTime mtime, FileTime atime, FileTime ctime) {
@@ -160,9 +328,24 @@ public class Vfs2NioFileSystem extends BaseFileSystem<Vfs2NioPath, Vfs2NioFileSy
         return supportedFileAttributeViews;
     }
 
-    @Override
-    protected Vfs2NioPath create(String root, ImmutableList<String> names) {
-        return new Vfs2NioPath(this, root, names);
+    public FileObject pathToFileObject(Vfs2NioPath path) {
+        try {
+            return root.resolveFile(path.toString());
+        } catch (FileSystemException e) {
+            throw new Vfs2NioException("Failed to resolve.", e);
+        }
+    }
+
+    public Vfs2NioPath fileObjectToPath(FileObject fo) {
+        return new Vfs2NioPath(this);
+    }
+
+    public FileStore getFileStore(Vfs2NioPath path) {
+        return new Vfs2NioFileStore(path);
+    }
+
+    protected Vfs2NioPath create(ImmutableList<String> names) {
+        return new Vfs2NioPath(this, names.toArray(new String[0]));
     }
 
     boolean exists(Vfs2NioPath path) {
@@ -170,18 +353,6 @@ public class Vfs2NioFileSystem extends BaseFileSystem<Vfs2NioPath, Vfs2NioFileSy
             return pathToFileObject(path).exists();
         } catch (Exception e) {
             return false;
-        }
-    }
-
-    FileStore getFileStore(Vfs2NioPath path) {
-        return new Vfs2NioFileStore(path);
-    }
-
-    FileObject pathToFileObject(Vfs2NioPath path) {
-        try {
-            return root.resolveFile(path.toString());
-        } catch (FileSystemException e) {
-            throw new Vfs2NioException("Failed to resolve.", e);
         }
     }
 }

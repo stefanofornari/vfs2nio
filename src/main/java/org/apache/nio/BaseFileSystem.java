@@ -30,13 +30,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.commons.vfs2.FileObject;
 
 public abstract class BaseFileSystem<T extends Path, P extends FileSystemProvider> extends FileSystem {
 
     private final P fileSystemProvider;
 
-    public BaseFileSystem(P fileSystemProvider) {
+    protected FileObject root;
+
+    public BaseFileSystem(P fileSystemProvider, FileObject root) {
         this.fileSystemProvider = fileSystemProvider;
+        this.root = root;
     }
 
     public T getDefaultDir() {
@@ -70,14 +74,13 @@ public abstract class BaseFileSystem<T extends Path, P extends FileSystemProvide
         }
 
         String path = sb.toString();
-        String root = null;
         if (path.startsWith("/")) {
-            root = "/";
             path = path.substring(1);
         }
 
-        String[] names = path.split("/");
-        return create(root, names);
+        String[] names = (path.length() > 0) ? path.split("/") : new String[0];
+
+        return create(names);
     }
 
     @Override
@@ -149,14 +152,14 @@ public abstract class BaseFileSystem<T extends Path, P extends FileSystemProvide
         }
     }
 
-    protected T create(String root, Collection<String> names) {
-        return create(root, new ImmutableList<>(names.toArray(new String[names.size()])));
+    protected T create(Collection<String> names) {
+        return create(new ImmutableList<>(names.toArray(new String[names.size()])));
     }
 
-    protected abstract T create(String root, ImmutableList<String> names);
+    protected abstract T create(ImmutableList<String> names);
 
-    protected T create(String root, String... names) {
-        return create(root, new ImmutableList<>(names));
+    protected T create(String... names) {
+        return create(new ImmutableList<>(names));
     }
 
     protected String globToRegex(String pattern) {
@@ -239,4 +242,7 @@ public abstract class BaseFileSystem<T extends Path, P extends FileSystemProvide
         return sb.toString();
     }
 
+    public T getRoot() {
+        return getPath("/");
+    }
 }

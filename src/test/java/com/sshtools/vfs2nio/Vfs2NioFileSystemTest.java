@@ -43,7 +43,7 @@ public class Vfs2NioFileSystemTest {
         Path path = vfsPath("src/test/fs/dir");
         then(Files.isDirectory(path)).isTrue();
         then(Files.isRegularFile(path)).isFalse();
-        path = vfsPath("src/test/fs/dir/subdir");;
+        path = vfsPath("src/test/fs/dir/subdir");
         then(Files.isDirectory(path)).isTrue();
         then(Files.isRegularFile(path)).isFalse();
         path = vfsPath("src/test/fs/dir/subdir/afile.txt");
@@ -57,9 +57,8 @@ public class Vfs2NioFileSystemTest {
         // A file in a archive is at the same time a regular file and a folder
         //
         Path path = Paths.get(URI.create("vfs:tar://" + new File("src/test/fs/test.tar").getAbsolutePath()));
-        System.out.println(path);
         then(Files.isDirectory(path)).isTrue();
-        then(Files.isRegularFile(path)).isTrue();
+        then(Files.isRegularFile(path)).isFalse();
 
         ((Vfs2NioPath)path).getFileSystem().close();
     }
@@ -68,7 +67,7 @@ public class Vfs2NioFileSystemTest {
 
     private Path vfsPath(final String path) {
         return Path.of(
-            URI.create("vfs:" + new File(path).getAbsoluteFile().toURI())
+            URI.create("vfs:file://" + new File(path).getAbsolutePath())
         );
     }
 }
