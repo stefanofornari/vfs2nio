@@ -2,3 +2,4 @@
 --------
 - Added a WalkingFileSystem to traverse a file system walking into archives;
   the supported formats are tar, tgz, tar.gz, zip, jar, gz, bz2
+- released 0.11.0
