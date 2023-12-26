@@ -59,7 +59,6 @@ import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 import static java.nio.file.FileVisitResult.TERMINATE;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
@@ -102,7 +101,6 @@ public class FileSystemTreeWalker implements Closeable {
     public final boolean followLinks;
     public final boolean walkIntoFiles;
     private boolean closed;
-    private final LinkOption[] linkOptions;
     private final Queue<DirectoryNode> queue = new LinkedList<>();
 
     /**
@@ -176,7 +174,6 @@ public class FileSystemTreeWalker implements Closeable {
         this.maxDepth = maxDepth;
         this.followLinks = followLinks;
         this.walkIntoFiles = walkInto;
-        this.linkOptions = (followLinks) ? new LinkOption[0] : new LinkOption[]{LinkOption.NOFOLLOW_LINKS};
         this.closed = false;
     }
 
