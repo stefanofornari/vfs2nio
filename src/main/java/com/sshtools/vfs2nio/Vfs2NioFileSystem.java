@@ -166,9 +166,6 @@ public class Vfs2NioFileSystem extends FileSystem {
     @Override
     public void close() throws IOException {
         provider().removeFileSystem(this);
-        if (!open) {
-            throw new IOException("Not open");
-        }
         open = false;
     }
 

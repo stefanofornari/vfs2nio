@@ -279,6 +279,7 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioTestBase {
     }
 
     // --------------------------------------------------------- private methods
+
     private FileSystem createRootVFS() throws IOException {
         URI uri = URI.create("vfs:" + rootFile.toURI().toString());
         FileSystem fs = FileSystems.newFileSystem(uri, Collections.EMPTY_MAP);

@@ -50,11 +50,13 @@ import com.sshtools.vfs2nio.Vfs2NioPath;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.DirectoryIteratorException;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystemLoopException;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
+import static java.nio.file.FileVisitResult.CONTINUE;
+import static java.nio.file.FileVisitResult.SKIP_SIBLINGS;
+import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
+import static java.nio.file.FileVisitResult.TERMINATE;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -67,33 +69,25 @@ import org.apache.commons.io.FilenameUtils;
 
 /**
  * Walks a file tree, generating a sequence of events corresponding to the files
- * in the tree.
+ * in the tree. "Event" in this context are calls to the given {@code FileVisitor}
  *
  * This variant from the original class provides the option to walk inside
  * archives using the virtual file system associated with the archive. The
- * supported formats are tar, tgz, tar.gz, zip, jar, gz, bz2 so that when a file
- * whose extension matches one of the supported formats, two events are
- * generated: first an ENTRY event, then a DIRECTORY_OPEN event. The archive is
- * walked into until the last file, after which a DIRECTORY_END even is fired.
+ * supported formats are tar, tgz, tar.gz, zip, jar, gz, bz2. When a file whose
+ * extension matches one of the supported formats, two events are generated:
+ * first an visitFile() event, then a preVisitDirectory() event. The archive is
+ * walked into until the last file, after which a postVisitDirectory() event is
+ * fired. All paths in the archive share the same file system, which is closed
+ * at the end of the processing.
  *
- * All paths in the archive share the same file system, which is closed at the
- * end of the processing.
+ * Directories are walked in Level Order Traversal (i.e. all siblings first,
+ * order given by Files.list() results).
  *
- *
- *
- * {@snippet lang=java :
- *     Path top = ...
- *     int maxDepth = ...
- *     boolean followLinks = ...
- *
- *     try (FileSystemTreeWalker walker = new FileTreeWalker(followLinks, maxDepth)) {
- *         FileTreeWalker.Event ev = walker.walk(top);
- *         do {
- *             process(ev);
- *             ev = walker.next();
- *         } while (ev != null);
- * }
- * }
+ * Note that differently from the original implementation this Walker does not
+ * prevent loops if {@code followLinks} is provided. This is for performance
+ * reason due to the potentially relevant memory needed to keep in memory all
+ * visited directories when traversing big file systems. Loop prevention can be
+ * implemented in the given {@code FileVisitor}.
  *
  */
 public class FileSystemTreeWalker implements Closeable {
@@ -103,12 +97,12 @@ public class FileSystemTreeWalker implements Closeable {
     };
 
     public final FileVisitor<Path> visitor;
+    public final Path path;
     public final int maxDepth;
     public final boolean followLinks;
     public final boolean walkIntoFiles;
     private boolean closed;
     private final LinkOption[] linkOptions;
-    //private final ArrayDeque<DirectoryNode> stack = new ArrayDeque<>();
     private final Queue<DirectoryNode> queue = new LinkedList<>();
 
     /**
@@ -117,24 +111,23 @@ public class FileSystemTreeWalker implements Closeable {
     private static class DirectoryNode {
 
         private final Path dir;
-        private final Object key;
         private final DirectoryStream<Path> stream;
         private final Iterator<Path> iterator;
         private boolean skipped;
 
-        DirectoryNode(Path dir, Object key, DirectoryStream<Path> stream) {
+        /**
+         *
+         * @param dir
+         * @param stream can be null to indicate the directory shall be skipped
+         */
+        DirectoryNode(Path dir, DirectoryStream<Path> stream) {
             this.dir = dir;
-            this.key = key;
             this.stream = stream;
-            this.iterator = stream.iterator();
+            this.iterator = (stream == null) ? null : stream.iterator();
         }
 
         Path directory() {
             return dir;
-        }
-
-        Object key() {
-            return key;
         }
 
         DirectoryStream<Path> stream() {
@@ -145,79 +138,17 @@ public class FileSystemTreeWalker implements Closeable {
             return iterator;
         }
 
-        void skip() {
-            skipped = true;
-        }
-
         boolean skipped() {
-            return skipped;
-        }
-    }
-
-    /**
-     * The event types.
-     */
-    static enum EventType {
-        /**
-         * Start of a directory
-         */
-        START_DIRECTORY,
-        /**
-         * End of a directory
-         */
-        END_DIRECTORY,
-        /**
-         * An entry in a directory
-         */
-        ENTRY;
-    }
-
-    /**
-     * Events returned by the {@link #walk} and {@link #next} methods.
-     */
-    static class Event {
-
-        private final EventType type;
-        private final Path file;
-        private final boolean directory;
-        private final IOException ioe;
-
-        private Event(EventType type, Path file, boolean directory, IOException ioe) {
-            this.type = type;
-            this.file = file;
-            this.directory = directory;
-            this.ioe = ioe;
-        }
-
-        Event(EventType type, Path file) {
-            this(type, file, false, null);
-        }
-
-        Event(EventType type, Path file, boolean directory) {
-            this(type, file, directory, null);
-        }
-
-        Event(EventType type, Path file, IOException ioe) {
-            this(type, file, false, ioe);
-        }
-
-        EventType type() {
-            return type;
-        }
-
-        Path file() {
-            return file;
-        }
-
-        IOException ioeException() {
-            return ioe;
+            return stream == null;
         }
     }
 
     /**
      * Creates a {@code FileTreeWalker}.
      *
-     * @param maxDepth max depth level visited
+     * @param path the path to walk into
+     * @param maxDepth max depth level relative to path visited (zero means do
+     *                 not traverse subdirectories)
      * @param followLinks follows synonym links if true, does not follow
      * otherwise
      * @param walkInto walk into archive files if true, does not walk into
@@ -229,7 +160,10 @@ public class FileSystemTreeWalker implements Closeable {
      * @throws NullPointerException if {@code options} is {@code null} or the
      * options array contains a {@code null} element
      */
-    public FileSystemTreeWalker(FileVisitor<Path> visitor, int maxDepth, boolean followLinks, boolean walkInto) {
+    public FileSystemTreeWalker(Path path, FileVisitor<Path> visitor, int maxDepth, boolean followLinks, boolean walkInto) {
+        if (path == null) {
+            throw new IllegalArgumentException("path can not be null");
+        }
         if (visitor == null) {
             throw new IllegalArgumentException("visitor can not be null");
         }
@@ -237,6 +171,7 @@ public class FileSystemTreeWalker implements Closeable {
             throw new IllegalArgumentException("maxDepth can not be negative");
         }
 
+        this.path = path;
         this.visitor = visitor;
         this.maxDepth = maxDepth;
         this.followLinks = followLinks;
@@ -246,47 +181,17 @@ public class FileSystemTreeWalker implements Closeable {
     }
 
     /**
-     * Same as FileSystemTreeWalker(visitor, Integer.MAX_VALUE, true, true);
+     * Same as FileSystemTreeWalker(path visitor, Integer.MAX_VALUE, true, true);
      */
-    public FileSystemTreeWalker(FileVisitor<Path> visitor) {
-        this(visitor, Integer.MAX_VALUE, true, true);
+    public FileSystemTreeWalker(Path path, FileVisitor<Path> visitor) {
+        this(path, visitor, Integer.MAX_VALUE, true, true);
     }
 
     /**
-     * Same as FileSystemTreeWalker(visitor, Integer.MAX_VALUE, true, walkIntoFiles);
+     * Same as FileSystemTreeWalker(path, visitor, Integer.MAX_VALUE, true, walkIntoFiles);
      */
-    public FileSystemTreeWalker(FileVisitor<Path> visitor, boolean walkIntoFiles) {
-        this(visitor, Integer.MAX_VALUE, true, walkIntoFiles);
-    }
-
-    /**
-     * Returns true if walking into the given directory would result in a file
-     * system loop/cycle.
-     */
-    private boolean wouldLoop(Path dir) {
-        // if this directory and ancestor has a file key then we compare
-        // them; otherwise we use less efficient isSameFile test.
-
-        String key = fileKey(dir);
-        for (DirectoryNode ancestor : queue) {
-            Object ancestorKey = ancestor.key();
-            if (key != null && ancestorKey != null) {
-                if (key.equals(ancestorKey)) {
-                    // cycle detected
-                    return true;
-                }
-            } else {
-                try {
-                    if (Files.isSameFile(dir, ancestor.directory())) {
-                        // cycle detected
-                        return true;
-                    }
-                } catch (IOException | SecurityException x) {
-                    // ignore
-                }
-            }
-        }
-        return false;
+    public FileSystemTreeWalker(Path path, FileVisitor<Path> visitor, boolean walkIntoFiles) {
+        this(path, visitor, Integer.MAX_VALUE, true, walkIntoFiles);
     }
 
     /**
@@ -303,96 +208,100 @@ public class FileSystemTreeWalker implements Closeable {
      */
     private FileVisitResult visit(Path entry, boolean ignoreSecurityException)
     throws IOException {
-        // at maximum depth or file is not a directory
-        int depth = queue.size();
-        if (depth >= maxDepth || !Files.isDirectory(entry)) {
+        if (!Files.isDirectory(entry) || (!followLinks && Files.isSymbolicLink(entry))) {
             return visitor.visitFile(entry, null);
         }
 
-        //
-        // check for cycles when following links and report an error in case of
-        // a loop
-        if (followLinks && wouldLoop(entry)) {
-            return visitor.visitFileFailed(entry, new FileSystemLoopException(entry.toString()));
+        if ((entry.getNameCount()-path.getNameCount()) > maxDepth) {
+            return FileVisitResult.CONTINUE;
         }
 
         // file is a directory, attempt to open it
+        FileVisitResult result = CONTINUE;
         DirectoryStream<Path> stream = null;
         try {
             stream = Files.newDirectoryStream(entry);
+            result = visitor.preVisitDirectory(entry, null);
         } catch (IOException ioe) {
-            return visitor.visitFileFailed(entry, ioe);
+            result = visitor.visitFileFailed(entry, ioe);
         } catch (SecurityException se) {
-            if (ignoreSecurityException)
-                return FileVisitResult.CONTINUE;
-            throw se;
+            if (ignoreSecurityException) {
+                result = CONTINUE;
+            }
+            result = visitor.visitFileFailed(entry, new IOException(se));
         }
 
-        // push a directory node to the stack and return an event
-        queue.add(new DirectoryNode(entry, fileKey(entry), stream));
-        return visitor.preVisitDirectory(entry, null);
+        if (skipSubtree(result) || skipSiblings(result)) {
+            queue.add(new DirectoryNode(entry, null)); // do not  walk into this entry
+        } else {
+            queue.add(new DirectoryNode(entry, stream)); // note that stream is null in case of error
+        }
+
+        return result;
     }
 
     /**
      * Walk the file system from the given file
      */
-    public void walk(Path file) throws IOException {
+    public void walk() throws IOException {
         if (closed) {
             throw new IllegalStateException("Closed");
         }
 
-        boolean walking = keepWalking(visit(file, false));
-        while (walking) {
+        Path entry = path;
+        FileVisitResult walkingResult;
+
+        walkingResult = visit(entry, true);
+        if (keepWalking(walkingResult)) {
+            entry = walkableFile(entry);
+            if (entry != null) {
+                walkingResult = visit(entry, true);
+            }
+        }
+
+        while (!stopWalking(walkingResult)) {
             DirectoryNode top = queue.peek();
             if (top == null) {
                 return;      // stack is empty, we are done
             }
 
-            //
-            // TODO: turn the below loop into a loop through the iterator
-            //
-            // continue iteration of the directory at the top of the stack
-            do {
-                Path entry = null;
-                IOException ioe = null;
+            IOException ioe = null;
+            Iterator<Path> iterator = top.iterator();
+            walkingResult = CONTINUE;
+            while (!stopWalking(walkingResult) && !skipSiblings(walkingResult) && (iterator != null) && iterator.hasNext()) {
+                Path child = iterator.next();
 
-                // get next entry in the directory
-                if (!top.skipped()) {
-                    Iterator<Path> iterator = top.iterator();
-                    try {
-                        if (iterator.hasNext()) {
-                            entry = iterator.next();
-                        }
-                    } catch (DirectoryIteratorException x) {
-                        ioe = x.getCause();
+                walkingResult = visit(child, true);
+                if (keepWalking(walkingResult)) {
+                    child = walkableFile(child);
+                    if (child != null) {
+                        walkingResult = visit(child, true);
                     }
                 }
+            } // no more children
 
-                // no next entry so close and pop directory,
-                // creating corresponding event
-                if (entry == null) {
-                    try {
-                        top.stream().close();
-                    } catch (IOException e) {
-                        if (ioe == null) {
-                            ioe = e;
-                        } else {
-                            ioe.addSuppressed(e);
-                        }
-                    }
-                    queue.poll();
-                    walking = keepWalking(visitor.postVisitDirectory(top.directory(), ioe));
-                    break;
+            try {
+                if (top.stream() != null) {
+                    top.stream().close();
                 }
-
-                walking = keepWalking(visit(entry, true));
-                if (walking) {
-                    entry = walkableFile(entry);
-                    if (entry != null) {
-                        walking = keepWalking(visit(entry, true));
-                    }
+            } catch (IOException e) {
+                if (ioe == null) {
+                    ioe = e;
+                } else {
+                    ioe.addSuppressed(e);
                 }
-            } while (walking);
+            }
+            queue.poll();
+            if (!stopWalking(walkingResult) && !top.skipped()) {
+                walkingResult = visitor.postVisitDirectory(top.directory(), ioe);
+            }
+            try {
+                top.directory().getFileSystem().close();
+            } catch (UnsupportedOperationException x) {
+                //
+                // nothing to do
+                //
+            }
         }
     }
 
@@ -403,22 +312,15 @@ public class FileSystemTreeWalker implements Closeable {
      * closed.
      */
     void pop() {
-        if (!queue.isEmpty()) {
+       while (!queue.isEmpty()) {
             DirectoryNode node = queue.poll();
             try {
-                node.stream().close();
-            } catch (IOException ignore) {
+                if (node.stream() != null) {
+                    node.stream().close();
+                }
+                node.directory().getFileSystem().close();
+            } catch (Exception ignore) {
             }
-        }
-    }
-
-    /**
-     * Skips the remaining entries in the directory at the top of the stack.
-     * This method is a no-op if the stack is empty or the walker is closed.
-     */
-    void skipRemainingSiblings() {
-        if (!queue.isEmpty()) {
-            queue.peek().skip();
         }
     }
 
@@ -442,19 +344,20 @@ public class FileSystemTreeWalker implements Closeable {
         }
     }
 
-    /**
-     * TODO: create a unique key to be able to detect cycling links in paths
-     *
-     * @param path the path to extract the key from
-     *
-     * @return the unique key
-     */
-    private String fileKey(Path path) {
-        return path.toUri().toString();
+    private boolean keepWalking(FileVisitResult result) {
+        return (result == CONTINUE);
     }
 
-    private boolean keepWalking(FileVisitResult result) {
-        return (result == FileVisitResult.CONTINUE);
+    private boolean stopWalking(FileVisitResult result) {
+        return (result == TERMINATE);
+    }
+
+    private boolean skipSubtree(FileVisitResult result) {
+        return (result == SKIP_SUBTREE);
+    }
+
+    private boolean skipSiblings(FileVisitResult result) {
+        return (result == SKIP_SIBLINGS);
     }
 
     private Path walkableFile(Path entry) {

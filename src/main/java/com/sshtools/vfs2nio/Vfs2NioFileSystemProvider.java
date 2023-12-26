@@ -444,6 +444,8 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         };
     }
 
+    // --------------------------------------------------------- private methods
+
     private RandomAccessMode toRandomAccessMode(Set<? extends OpenOption> options) {
         if (options.contains(StandardOpenOption.WRITE) || options.contains(StandardOpenOption.CREATE)
                 || options.contains(StandardOpenOption.CREATE_NEW)) {
