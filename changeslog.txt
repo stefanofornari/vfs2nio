@@ -1,6 +1,6 @@
 20231230
 --------
-- fixed issue in closign file systems
+- fixed issue in closing file systems
 
 20231226
 --------
