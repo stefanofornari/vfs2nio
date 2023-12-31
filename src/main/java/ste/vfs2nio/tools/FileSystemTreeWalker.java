@@ -106,38 +106,59 @@ public class FileSystemTreeWalker implements Closeable {
     /**
      * The element on the walking stack corresponding to a directory node.
      */
-    private static class DirectoryNode {
+    static class DirectoryNode implements Cloneable {
 
         private final Path dir;
-        private final DirectoryStream<Path> stream;
-        private final Iterator<Path> iterator;
-        private boolean skipped;
+        private final boolean skip;
+
+        private DirectoryStream<Path> stream = null;
+        private Iterator<Path> iterator = null;
 
         /**
          *
          * @param dir
          * @param stream can be null to indicate the directory shall be skipped
          */
-        DirectoryNode(Path dir, DirectoryStream<Path> stream) {
+        DirectoryNode(final Path dir, final boolean skip) {
             this.dir = dir;
-            this.stream = stream;
-            this.iterator = (stream == null) ? null : stream.iterator();
+            this.skip = skip;
         }
 
         Path directory() {
             return dir;
         }
 
-        DirectoryStream<Path> stream() {
-            return stream;
-        }
+        Iterator<Path> iterator() throws IOException {
+            if (iterator == null) {
+                stream = Files.newDirectoryStream(dir);
+                iterator = stream.iterator();
+            }
 
-        Iterator<Path> iterator() {
             return iterator;
         }
 
         boolean skipped() {
-            return stream == null;
+            return skip;
+        }
+
+        void close() {
+            try {
+                if (stream != null) {
+                    stream.close();
+                    //
+                    // if the path has been created by the walker to enter an
+                    // archive, let's close its file system
+                    //
+                    if (dir instanceof Vfs2NioPath) {
+                        dir.getFileSystem().close();
+                    }
+                }
+            } catch (IOException | UnsupportedOperationException x) {
+                //
+                // nothing we can do here...
+                //
+            }
+            iterator = null;
         }
     }
 
@@ -229,9 +250,9 @@ public class FileSystemTreeWalker implements Closeable {
         }
 
         if (skipSubtree(result) || skipSiblings(result)) {
-            queue.add(new DirectoryNode(entry, null)); // do not  walk into this entry
+            queue.add(new DirectoryNode(entry, true)); // do not  walk into this entry
         } else {
-            queue.add(new DirectoryNode(entry, stream)); // note that stream is null in case of error
+            queue.add(new DirectoryNode(entry, false)); // note that stream is null in case of error
         }
 
         return result;
@@ -262,43 +283,42 @@ public class FileSystemTreeWalker implements Closeable {
                 return;      // stack is empty, we are done
             }
 
-            IOException ioe = null;
-            Iterator<Path> iterator = top.iterator();
-            walkingResult = CONTINUE;
-            while (!stopWalking(walkingResult) && !skipSiblings(walkingResult) && (iterator != null) && iterator.hasNext()) {
-                Path child = iterator.next();
+            if (!top.skipped()) {
+                IOException ioe = null;
+                try {
+                    Iterator<Path> iterator = top.iterator();
+                    walkingResult = CONTINUE;
+                    while (!stopWalking(walkingResult) && !skipSiblings(walkingResult) && iterator.hasNext()) {
+                        try {
+                            Path child = iterator.next();
 
-                walkingResult = visit(child, true);
-                if (keepWalking(walkingResult)) {
-                    child = walkableFile(child);
-                    if (child != null) {
-                        walkingResult = visit(child, true);
-                    }
+                            walkingResult = visit(child, true);
+                            if (keepWalking(walkingResult)) {
+                                child = walkableFile(child);
+                                if (child != null) {
+                                    walkingResult = visit(child, true);
+                                }
+                            }
+                        } catch (IOException x) {
+                            //
+                            // if an error is encountered itearating a folder, the
+                            // exception is passed to postVisit()
+                            //
+                            ioe = x;
+                        }
+                    } // no more children
+                } catch (IOException x) {
+                    //
+                    // Error in opening the folder
+                    //
+                    walkingResult = visitor.visitFileFailed(top.directory(), x);
                 }
-            } // no more children
 
-            try {
-                if (top.stream() != null) {
-                    top.stream().close();
-                }
-            } catch (IOException e) {
-                if (ioe == null) {
-                    ioe = e;
-                } else {
-                    ioe.addSuppressed(e);
+                if (!stopWalking(walkingResult)) {
+                    walkingResult = visitor.postVisitDirectory(top.directory(), ioe);
                 }
             }
-            queue.poll();
-            if (!stopWalking(walkingResult) && !top.skipped()) {
-                walkingResult = visitor.postVisitDirectory(top.directory(), ioe);
-            }
-            try {
-                top.directory().getFileSystem().close();
-            } catch (UnsupportedOperationException x) {
-                //
-                // nothing to do
-                //
-            }
+            top.close(); queue.poll();
         }
     }
 
@@ -309,16 +329,7 @@ public class FileSystemTreeWalker implements Closeable {
      * closed.
      */
     void pop() {
-       while (!queue.isEmpty()) {
-            DirectoryNode node = queue.poll();
-            try {
-                if (node.stream() != null) {
-                    node.stream().close();
-                }
-                node.directory().getFileSystem().close();
-            } catch (Exception ignore) {
-            }
-        }
+       queue.poll().close();
     }
 
     /**
@@ -355,6 +366,10 @@ public class FileSystemTreeWalker implements Closeable {
 
     private boolean skipSiblings(FileVisitResult result) {
         return (result == SKIP_SIBLINGS);
+    }
+
+    private boolean hasChildren(Iterator i) {
+        return ((i != null) && i.hasNext());
     }
 
     private Path walkableFile(Path entry) {

@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -43,11 +44,22 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 /**
  *
  */
 public class FileSystemTreeWalkerTest {
+
+    @Rule
+    public TestRule watcher = new TestWatcher() {
+        protected void starting(Description description) {
+            final String name = description.getMethodName();
+            System.out.println(String.format("%s\n%s\n%s", "=".repeat(name.length()), name, "-".repeat(name.length())));
+        }
+    };
 
     @Rule
     public TemporaryFolder TMP = new TemporaryFolder();
@@ -418,6 +430,19 @@ public class FileSystemTreeWalkerTest {
         then(visitor.errors.get(1).getCause()).isInstanceOf(IOException.class).hasMessage(F2.getAbsolutePath());
     }
 
+    @Test
+    public void same_DirectoryNode_iterator_once_created() throws IOException {
+        FileSystemTreeWalker.DirectoryNode n = new FileSystemTreeWalker.DirectoryNode(
+            Paths.get("src/test/fs"), true
+        );
+
+        Iterator<Path> i = n.iterator();
+        then(n.iterator()).isSameAs(i);
+
+        n.close();
+        then(n.iterator()).isNotSameAs(i);
+    }
+
     // -------------------------------------------------------- DummyFileVisitor
 
     private class DummyFileVisitor implements FileVisitor<Path> {
@@ -483,7 +508,7 @@ public class FileSystemTreeWalkerTest {
             System.out.println("ERROR: " + p.toUri());
             ioe.printStackTrace();
             errors.add(new FileSystemWalkException(p, ioe));
-            return CONTINUE;
+            return SKIP_SUBTREE;
         }
     }
 

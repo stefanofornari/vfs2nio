@@ -1,3 +1,7 @@
+20231230
+--------
+- fixed issue in closign file systems
+
 20231226
 --------
 - Added a WalkingFileSystem to traverse a file system walking into archives;
