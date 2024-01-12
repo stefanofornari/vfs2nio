@@ -21,9 +21,12 @@
 package com.sshtools.vfs2nio;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.FileSystem;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.Before;
 
 /**
@@ -45,5 +48,11 @@ public abstract class Vfs2NioTestBase {
             }
         });
     }
+
+    protected Stream<URI> toUris(List<Path> paths) {
+        return paths.stream().map((p) -> p.toUri());
+    }
+
+
 
 }

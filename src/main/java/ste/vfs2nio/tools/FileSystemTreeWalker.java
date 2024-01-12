@@ -60,11 +60,13 @@ import static java.nio.file.FileVisitResult.TERMINATE;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
 import java.util.Queue;
-import org.apache.commons.io.FilenameUtils;
 
 /**
  * Walks a file tree, generating a sequence of events corresponding to the files
@@ -72,7 +74,7 @@ import org.apache.commons.io.FilenameUtils;
  *
  * This variant from the original class provides the option to walk inside
  * archives using the virtual file system associated with the archive. The
- * supported formats are tar, tgz, tar.gz, zip, jar, gz, bz2. When a file whose
+ * supported formats are tar, tar.gz, tgz, zip, jar, gz, bz2. When a file whose
  * extension matches one of the supported formats, two events are generated:
  * first an visitFile() event, then a preVisitDirectory() event. The archive is
  * walked into until the last file, after which a postVisitDirectory() event is
@@ -372,20 +374,51 @@ public class FileSystemTreeWalker implements Closeable {
         return ((i != null) && i.hasNext());
     }
 
-    private Path walkableFile(Path entry) {
+    private Path walkableFile(Path entry) throws IOException {
         if (!walkIntoFiles) {
             return null;
         }
 
-        String pathname = entry.toString().toLowerCase();
-        if (FilenameUtils.isExtension(pathname, WALK_INTO_FILE_TYPES)) {
-            String ext = FilenameUtils.getExtension(pathname);
-            try {
-                Vfs2NioFileSystem fs = (Vfs2NioFileSystem)FileSystems.newFileSystem(URI.create("vfs:" + ext + "://" + entry.toAbsolutePath().toString()), Collections.EMPTY_MAP);
-                return new Vfs2NioPath(fs, "");
-            } catch (IOException x) {}
+        Optional<URI> archiveUri = ArchiveDetector.uriIfArchive(entry);
+        if (archiveUri.isPresent()) {
+            System.out.println(archiveUri.toString());
+            Vfs2NioFileSystem fs = (Vfs2NioFileSystem)FileSystems.newFileSystem(
+                archiveUri.get(), Collections.EMPTY_MAP
+            );
+            return new Vfs2NioPath(fs, "");
         }
 
         return null;
+    }
+
+    // --------------------------------------------------------- ArchiveDetector
+
+    public static class ArchiveDetector {
+        public final static List<String> SUPPORTED_ARCHIVES = Arrays.asList(new String[] {
+            "tar", "tar.gz", "tgz", "zip", "jar", "gz", "bz2"
+        });
+
+        public static Optional<URI> uriIfArchive(Path path) {
+            final String pathname = path.toString().toLowerCase();
+
+            if (pathname.endsWith(".tar.gz")) {
+                return Optional.of(fix(path.toUri(), "tgz"));
+            }
+
+            int pos = pathname.lastIndexOf('.');
+            if ((pos < 0) || (pos == pathname.length()-1)) {
+                return Optional.empty();
+            }
+            final String ext = pathname.substring(pos+1);
+            return SUPPORTED_ARCHIVES.contains(ext) ? Optional.of(fix(path.toUri(), ext)) : Optional.empty();
+        }
+
+        private static URI fix(final URI uri, final String scheme) {
+            final String uriString = uri.toString();
+
+            return uriString.startsWith("vfs:") ?
+                URI.create(uriString.replaceFirst("^vfs:", "vfs:" + scheme + ':')) :
+                URI.create("vfs:" + scheme + ":" + uriString);
+        }
     }
 }

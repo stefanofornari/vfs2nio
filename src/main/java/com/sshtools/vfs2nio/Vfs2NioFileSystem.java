@@ -21,7 +21,6 @@
 package com.sshtools.vfs2nio;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
@@ -84,10 +83,7 @@ public class Vfs2NioFileSystem extends FileSystem {
             sb.setLength(sb.length() - 1);
         }
 
-        String path = sb.toString();
-        if (path.startsWith("/")) {
-            path = path.substring(1);
-        }
+        String path = sb.toString().replaceFirst("!?/", "");
 
         String[] names = (path.length() > 0) ? path.split("/") : new String[0];
 
@@ -272,17 +268,6 @@ public class Vfs2NioFileSystem extends FileSystem {
             }
         }
         return sb.toString();
-    }
-
-
-    //
-    // TODO: remove uri
-    //
-    private URI uri;
-
-    public Vfs2NioFileSystem(Vfs2NioFileSystemProvider provider, FileObject root, URI uri) throws FileSystemException {
-        this(provider, root);
-        this.uri = uri;
     }
 
     public Vfs2NioFileAttributes getFileAttributes(Vfs2NioPath path) {

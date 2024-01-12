@@ -70,7 +70,6 @@ import org.apache.commons.vfs2.UserAuthenticationData;
 import org.apache.commons.vfs2.UserAuthenticationData.Type;
 import org.apache.commons.vfs2.UserAuthenticator;
 import org.apache.commons.vfs2.VFS;
-import org.apache.commons.vfs2.impl.DefaultFileSystemConfigBuilder;
 import org.apache.commons.vfs2.util.RandomAccessMode;
 
 public class Vfs2NioFileSystemProvider extends FileSystemProvider {
@@ -203,14 +202,14 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         // Create a relative path from the given path and the determined root
         //
         String root = fileSystem.root.getPublicURIString();
-        String rootPath = root.substring(root.indexOf(":///")+4);
+        String rootPath = root.replaceFirst("^([a-zA-Z]+:)+//", "");
         if (rootPath.endsWith("/")) {
             rootPath = rootPath.substring(0, rootPath.length()-1);
         }
         if (rootPath.endsWith("!")) {
             rootPath = rootPath.substring(0, rootPath.length()-1);
         }
-        String uriPath = uri.toString().substring(uri.toString().indexOf(":///")+4);
+        String uriPath = uri.toString().replaceFirst("^([a-zA-Z]+:)+//", "");
 
         return fileSystem.getPath(uriPath.replaceFirst("^" + rootPath, ""));
     }
@@ -479,25 +478,22 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                         "The scheme %s is not available. Do you have all required commons-vfs libraries, as well as libraries the specific scheme needs? If you are using Java modules, you may need to open additional packages. As of today, 2022-06-11, Commons VFS is not JPMS aware. Support schemes are %s",
                         path.getScheme(), String.join(", ", mgr.getSchemes())));
             }
+
+            //
+            // TODO: this does not work!!! at each creation a global
+            // authenticator is set overriding previously set instances. We need
+            // something bound to the URI or using the URI
+            //
+            /*
             var auth = (UserAuthenticator) env.get(AUTHENTICATOR);
             if (auth != null) {
                 DefaultFileSystemConfigBuilder.getInstance().setUserAuthenticator(opts, auth);
             } else {
                 DefaultFileSystemConfigBuilder.getInstance().setUserAuthenticator(opts,
-                        new UA(uri, (Map<String, Object>) env));
+                    new UA(uri, (Map<String, Object>) env));
             }
-
-            /*
-             * First resolve the URI without a path. For Commons VFS, this may either be the
-             * actual root of the file system, or it might be some intermediate path such as
-             * the user's home directory.
-             *
-             * Once the root is resolved, we then resolve the path against that, ALWAYS
-             * treating it as an absolute path.
-             *
-             * Due to how Commons VFS works, we cannot support relative paths from the user
-             * homes directory.
-             */
+            */
+            // ----
             FileObject root = null;
 
             try {
@@ -510,7 +506,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                 throw new FileSystemAlreadyExistsException("A file system for " + root + " has been already created; use getFileSystem()");
             }
 
-            var vfs = new Vfs2NioFileSystem(this, root, path);
+            var vfs = new Vfs2NioFileSystem(this, root);
 
             filesystems.put(root, vfs);
             return vfs;

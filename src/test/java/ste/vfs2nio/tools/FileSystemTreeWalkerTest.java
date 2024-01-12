@@ -20,24 +20,15 @@
  */
 package ste.vfs2nio.tools;
 
+import com.sshtools.vfs2nio.Vfs2NioTestBase;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.FileVisitResult;
-import static java.nio.file.FileVisitResult.CONTINUE;
-import static java.nio.file.FileVisitResult.SKIP_SIBLINGS;
-import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
-import static java.nio.file.FileVisitResult.TERMINATE;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -51,7 +42,7 @@ import org.junit.runner.Description;
 /**
  *
  */
-public class FileSystemTreeWalkerTest {
+public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
     @Rule
     public TestRule watcher = new TestWatcher() {
@@ -441,78 +432,5 @@ public class FileSystemTreeWalkerTest {
 
         n.close();
         then(n.iterator()).isNotSameAs(i);
-    }
-
-    // -------------------------------------------------------- DummyFileVisitor
-
-    private class DummyFileVisitor implements FileVisitor<Path> {
-
-        public final List<Path> visited = new ArrayList();
-        public final List<FileSystemWalkException> errors = new ArrayList();
-        public final List<Path> walkedIn = new ArrayList();
-        public final List<Path> walkedOut = new ArrayList();
-
-        public Predicate<Path> checkSkipSubtree = (path) -> { return false; };
-        public Predicate<Path> checkStopWalking = checkSkipSubtree;
-        public Predicate<Path> checkSkipSiblings = checkSkipSubtree;
-        public Predicate<Path> checkError = checkSkipSubtree;
-
-        @Override
-        public FileVisitResult preVisitDirectory(Path p, BasicFileAttributes bfa) throws IOException {
-            System.out.println("PRE: " + p.toUri());
-            walkedIn.add(p);
-
-            if (checkStopWalking.test(p)) {
-                return TERMINATE;
-            }
-            if (checkSkipSubtree.test(p)) {
-                return SKIP_SUBTREE;
-            }
-            if (checkSkipSiblings.test(p)) {
-                return SKIP_SIBLINGS;
-            }
-
-            return  CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult postVisitDirectory(Path p, IOException ioe) throws IOException {
-            System.out.println("POST: " + p.toUri());
-            walkedOut.add(p);
-
-            if (checkStopWalking.test(p)) {
-                return TERMINATE;
-            }
-            if (checkSkipSiblings.test(p)) {
-                return SKIP_SIBLINGS;
-            }
-            return CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult visitFile(Path p, BasicFileAttributes bfa) throws IOException {
-            System.out.println("VISIT: " + p.toUri());
-            visited.add(p);
-
-            if (checkStopWalking.test(p)) {
-                return TERMINATE;
-            }
-            if (checkSkipSiblings.test(p)) {
-                return SKIP_SIBLINGS;
-            }
-            return CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult visitFileFailed(Path p, IOException ioe) throws IOException {
-            System.out.println("ERROR: " + p.toUri());
-            ioe.printStackTrace();
-            errors.add(new FileSystemWalkException(p, ioe));
-            return SKIP_SUBTREE;
-        }
-    }
-
-    private Stream<URI> toUris(List<Path> paths) {
-        return paths.stream().map((p) -> p.toUri());
     }
 }

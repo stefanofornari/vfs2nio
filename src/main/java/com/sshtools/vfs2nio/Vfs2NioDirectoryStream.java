@@ -90,7 +90,7 @@ public class Vfs2NioDirectoryStream implements DirectoryStream<Path> {
                     //
                     // Create Path relative to their root
                     //
-                    return new Vfs2NioPath(fs, children[index++].getName().getPath().substring(1));
+                    return new Vfs2NioPath(fs, children[index++].getName().getPath().substring(1).split(fs.getSeparator()));
                 }
 
                 @Override

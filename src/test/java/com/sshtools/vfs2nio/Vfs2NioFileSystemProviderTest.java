@@ -20,8 +20,6 @@
  */
 package com.sshtools.vfs2nio;
 
-import static com.sshtools.vfs2nio.Vfs2NioFileSystemProvider.PASSWORD;
-import static com.sshtools.vfs2nio.Vfs2NioFileSystemProvider.USERNAME;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -42,51 +40,17 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
-import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.mockftpserver.fake.FakeFtpServer;
-import org.mockftpserver.fake.UserAccount;
-import org.mockftpserver.fake.filesystem.FileEntry;
-import org.mockftpserver.fake.filesystem.UnixFakeFileSystem;
 
-public class Vfs2NioFileSystemProviderTest extends Vfs2NioTestBase {
+public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
 
     File rootFile = new File(File.separator);
-
-    private static final String HOME_DIR = "/public";
-    private static final String FILE = "/public/dir/sample.txt";
-    private static final String CONTENT = "abcdef 1234567890";
-
-    private static FakeFtpServer FTP;
-
-    @BeforeClass
-    public static void before_all() throws Exception {
-        FTP = new FakeFtpServer();
-        FTP.setServerControlPort(0);  // use any free port
-
-        org.mockftpserver.fake.filesystem.FileSystem fileSystem = new UnixFakeFileSystem();
-        fileSystem.add(new FileEntry(FILE, CONTENT));
-        FTP.setFileSystem(fileSystem);
-
-        UserAccount userAccount = new UserAccount("anonymous", "anonymous", HOME_DIR);
-        FTP.addUserAccount(userAccount);
-
-        FTP.start();
-    }
-
-    @AfterClass
-    public static void after_all() throws Exception {
-        FTP.stop();
-    }
 
     @Test
     public void create_and_get_file_systems() throws IOException {
@@ -121,11 +85,8 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioTestBase {
         then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
         fs.close();
 
-        Map<String, String> env = new HashMap<>();
-        env.put(USERNAME, "anonymous");
-        env.put(PASSWORD, "");
         uri = URI.create("vfs:ftp://localhost:" + FTP.getServerControlPort() + "/public");
-        fs = provider.newFileSystem(uri, env);
+        fs = provider.newFileSystem(uri, Collections.EMPTY_MAP);
         then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:ftp://localhost:" + FTP.getServerControlPort() + "/"));
         fs.close();
     }
