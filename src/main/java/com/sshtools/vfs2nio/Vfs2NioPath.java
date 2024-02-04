@@ -18,6 +18,8 @@ package com.sshtools.vfs2nio;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.LinkOption;
@@ -317,7 +319,7 @@ public class Vfs2NioPath implements Path {
             "%s:%s%s",
             fileSystem.provider().getScheme(),
             fileSystem.root.getPublicURIString(),
-            toString()
+            encodePath()
         ));
     }
 
@@ -475,5 +477,19 @@ public class Vfs2NioPath implements Path {
 
     void setTimes(FileTime mtime, FileTime atime, FileTime ctime) throws IOException {
         getFileSystem().setTimes(normalize(), mtime, atime, ctime);
+    }
+
+    private String encodePath() {
+        final String elements[] = toString().split("/");
+
+        final StringBuilder sb = new StringBuilder();
+        for (String element: elements) {
+            if (!sb.isEmpty()) {
+                sb.append('/');
+            }
+            sb.append(URLEncoder.encode(element, Charset.defaultCharset()));
+        }
+
+        return sb.toString();
     }
 }

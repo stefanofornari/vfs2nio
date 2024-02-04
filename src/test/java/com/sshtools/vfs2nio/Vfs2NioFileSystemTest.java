@@ -40,13 +40,13 @@ public class Vfs2NioFileSystemTest {
 
     @Test
     public void attributes_file() throws IOException {
-        Path path = vfsPath("src/test/fs/dir");
+        Path path = vfsPath("src/test/fs/suite1/dir");
         then(Files.isDirectory(path)).isTrue();
         then(Files.isRegularFile(path)).isFalse();
-        path = vfsPath("src/test/fs/dir/subdir");
+        path = vfsPath("src/test/fs/suite1/dir/subdir");
         then(Files.isDirectory(path)).isTrue();
         then(Files.isRegularFile(path)).isFalse();
-        path = vfsPath("src/test/fs/dir/subdir/afile.txt");
+        path = vfsPath("src/test/fs/suite1/dir/subdir/afile.txt");
         then(Files.isDirectory(path)).isFalse();
         then(Files.isRegularFile(path)).isTrue();
     }
@@ -56,7 +56,7 @@ public class Vfs2NioFileSystemTest {
         //
         // A file in a archive is at the same time a regular file and a folder
         //
-        Path path = Paths.get(URI.create("vfs:tar://" + new File("src/test/fs/test.tar").getAbsolutePath()));
+        Path path = Paths.get(URI.create("vfs:tar://" + new File("src/test/fs/suite1/test.tar").getAbsolutePath()));
         then(Files.isDirectory(path)).isTrue();
         then(Files.isRegularFile(path)).isFalse();
 

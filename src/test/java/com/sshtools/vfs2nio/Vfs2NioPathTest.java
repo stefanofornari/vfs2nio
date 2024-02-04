@@ -41,7 +41,7 @@ public class Vfs2NioPathTest extends Vfs2NioTestBase {
         then(new Vfs2NioPath(fs, "", "folder", "file.txt").toUri()).isEqualTo(URI.create("vfs:file:///folder/file.txt"));
         fs.close();
 
-        String tar = new File("src/test/fs/test.tar").getAbsolutePath();
+        String tar = new File("src/test/fs/suite1/test.tar").getAbsolutePath();
         uri = URI.create("vfs:tar://" + tar);
         fs = (Vfs2NioFileSystem)FileSystems.newFileSystem(uri, Collections.EMPTY_MAP);
         then(new Vfs2NioPath(fs, "").toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
@@ -54,7 +54,7 @@ public class Vfs2NioPathTest extends Vfs2NioTestBase {
         URI uri = URI.create("vfs:file:///");
         then(Paths.get(uri).toUri()).isEqualTo(uri);
 
-        String tar = new File("src/test/fs/test.tar").getAbsolutePath();
+        String tar = new File("src/test/fs/suite1/test.tar").getAbsolutePath();
         uri = URI.create("vfs:tar://" + tar);
         then(Paths.get(uri).toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
     }

@@ -61,7 +61,7 @@ public class Vfs2NioFtpPathsTest extends Vfs2NioWithFtpTestBase {
     @Test
     public void navigate_into_archive() throws IOException {
         final FileEntry archive = new FileEntry(HOME_DIR + "/test.tar.gz");
-        archive.setContents(FileUtils.readFileToByteArray(new File("src/test/fs/test.tgz")));
+        archive.setContents(FileUtils.readFileToByteArray(new File("src/test/fs/suite1/test.tgz")));
         FTP.getFileSystem().add(archive);
 
         DummyFileVisitor visitor = new DummyFileVisitor();

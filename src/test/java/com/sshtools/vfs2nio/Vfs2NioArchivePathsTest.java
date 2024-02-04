@@ -35,7 +35,7 @@ public class Vfs2NioArchivePathsTest extends Vfs2NioWithFtpTestBase {
 
     @Test
     public void navigate_from_root() throws IOException {
-        final String ROOT = "vfs:tar:file://" + new File("src/test/fs/test.tar").getAbsolutePath();
+        final String ROOT = "vfs:tar:file://" + new File("src/test/fs/suite1/test.tar").getAbsolutePath();
 
         URI uri = URI.create(ROOT);
         Path path = Path.of(uri);

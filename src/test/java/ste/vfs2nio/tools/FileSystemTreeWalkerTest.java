@@ -96,60 +96,60 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         then(f.isOpen()).isTrue();
 
         thenThrownBy(() -> new FileSystemTreeWalker(null, visitor, 12, true, false))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("path can not be null");
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("path can not be null");
 
         thenThrownBy(() -> new FileSystemTreeWalker(P, null, 12, true, false))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("visitor can not be null");
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("visitor can not be null");
 
         thenThrownBy(() -> new FileSystemTreeWalker(P, visitor, -1, true, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("maxDepth can not be negative");
 
         thenThrownBy(() -> new FileSystemTreeWalker(P, null, true))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("visitor can not be null");
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("visitor can not be null");
     }
 
     @Test
     public void walking_into_with_zero_maxDepth() throws Exception {
         DummyFileVisitor visitor = new DummyFileVisitor();
-        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Paths.get("src/test/fs"), visitor, 0, true, false)) {
+        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Paths.get("src/test/fs/suite1"), visitor, 0, true, false)) {
             f.walk();
         }
 
         then(visitor.visited).containsExactly(
-                Paths.get("src/test/fs/test.tar"),
-                Paths.get("src/test/fs/test.zip"),
-                Paths.get("src/test/fs/test.tgz")
+            Paths.get("src/test/fs/suite1/test.tar"),
+            Paths.get("src/test/fs/suite1/test.zip"),
+            Paths.get("src/test/fs/suite1/test.tgz")
         );
         then(visitor.errors).isEmpty();
         then(visitor.walkedIn).containsExactly(
-                Paths.get("src/test/fs/")
+                Paths.get("src/test/fs/suite1/")
         );
         then(visitor.walkedOut).containsExactly(
-                Paths.get("src/test/fs/")
+                Paths.get("src/test/fs/suite1/")
         );
     }
 
     @Test
     public void walking_into_normal_tree() throws Exception {
         DummyFileVisitor visitor = new DummyFileVisitor();
-        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Paths.get("src/test/fs"), visitor, false)) {
+        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Paths.get("src/test/fs/suite1"), visitor, false)) {
             f.walk();
         }
 
         then(visitor.visited).containsExactly(
-                Paths.get("src/test/fs/test.tar"), Paths.get("src/test/fs/test.zip"),
-                Paths.get("src/test/fs/test.tgz"), Paths.get("src/test/fs/dir/subdir/afile.txt")
+            Paths.get("src/test/fs/suite1/test.tar"), Paths.get("src/test/fs/suite1/test.zip"),
+            Paths.get("src/test/fs/suite1/test.tgz"), Paths.get("src/test/fs/suite1/dir/subdir/afile.txt")
         );
         then(visitor.errors).isEmpty();
         then(visitor.walkedIn).containsExactly(
-                Paths.get("src/test/fs"), Paths.get("src/test/fs/dir"), Paths.get("src/test/fs/dir/subdir")
+            Paths.get("src/test/fs/suite1"), Paths.get("src/test/fs/suite1/dir"), Paths.get("src/test/fs/suite1/dir/subdir")
         );
         then(visitor.walkedOut).containsExactly(
-                Paths.get("src/test/fs"), Paths.get("src/test/fs/dir"), Paths.get("src/test/fs/dir/subdir")
+            Paths.get("src/test/fs/suite1"), Paths.get("src/test/fs/suite1/dir"), Paths.get("src/test/fs/suite1/dir/subdir")
         );
     }
 
@@ -158,43 +158,43 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         final String BASEDIR = new File("").getAbsolutePath();
 
         DummyFileVisitor visitor = new DummyFileVisitor();
-        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Paths.get("src/test/fs"), visitor)) {
+        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Paths.get("src/test/fs/suite1"), visitor)) {
             f.walk();
         }
 
         then(toUris(visitor.visited)).containsExactly(
-                Paths.get("src/test/fs/test.tar").toUri(), Paths.get("src/test/fs/test.zip").toUri(),
-                Paths.get("src/test/fs/test.tgz").toUri(), Paths.get("src/test/fs/dir/subdir/afile.txt").toUri(),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/dir/afile.txt"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/dir/afile.txt"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/dir/afile.txt")
+            Paths.get("src/test/fs/suite1/test.tar").toUri(), Paths.get("src/test/fs/suite1/test.zip").toUri(),
+            Paths.get("src/test/fs/suite1/test.tgz").toUri(), Paths.get("src/test/fs/suite1/dir/subdir/afile.txt").toUri(),
+            URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/dir/afile.txt"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/dir/afile.txt"),
+            URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/dir/afile.txt")
         );
         then(visitor.errors).isEmpty();
         then(toUris(visitor.walkedIn)).containsExactly(
-                Paths.get("src/test/fs").toUri(), Paths.get("src/test/fs/dir").toUri(),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/"),
-                Paths.get("src/test/fs/dir/subdir").toUri(),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/dir"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/dir"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/dir"),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/dir/subdir"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/dir/subdir"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/dir/subdir")
+                Paths.get("src/test/fs/suite1").toUri(), Paths.get("src/test/fs/suite1/dir").toUri(),
+                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/"),
+                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/"),
+                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/"),
+                Paths.get("src/test/fs/suite1/dir/subdir").toUri(),
+                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/dir"),
+                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/dir"),
+                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/dir"),
+                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/dir/subdir"),
+                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/dir/subdir"),
+                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/dir/subdir")
         );
         then(toUris(visitor.walkedOut)).containsExactly(
-                Paths.get("src/test/fs").toUri(), Paths.get("src/test/fs/dir").toUri(),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/"),
-                Paths.get("src/test/fs/dir/subdir").toUri(),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/dir"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/dir"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/dir"),
-                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/test.tar!/dir/subdir"),
-                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/test.zip!/dir/subdir"),
-                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/test.tgz!/dir/subdir")
+                Paths.get("src/test/fs/suite1").toUri(), Paths.get("src/test/fs/suite1/dir").toUri(),
+                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/"),
+                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/"),
+                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/"),
+                Paths.get("src/test/fs/suite1/dir/subdir").toUri(),
+                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/dir"),
+                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/dir"),
+                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/dir"),
+                URI.create("vfs:tar:file://" + BASEDIR + "/src/test/fs/suite1/test.tar!/dir/subdir"),
+                URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite1/test.zip!/dir/subdir"),
+                URI.create("vfs:tgz:file://" + BASEDIR + "/src/test/fs/suite1/test.tgz!/dir/subdir")
         );
     }
 
@@ -251,7 +251,7 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
     @Test
     public void walk_with_file() throws IOException {
-        final Path P = Paths.get("src/test/fs/test.zip");
+        final Path P = Paths.get("src/test/fs/suite1/test.zip");
         final DummyFileVisitor V = new DummyFileVisitor();
 
         try (FileSystemTreeWalker f = new FileSystemTreeWalker(P, V, 4, true, false)) {
@@ -266,7 +266,7 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
     @Test
     public void walk_into_single_file() throws Exception {
-        final Path P = Paths.get("src/test/fs/test.zip");
+        final Path P = Paths.get("src/test/fs/suite1/test.zip");
         final DummyFileVisitor V = new DummyFileVisitor();
 
         try (FileSystemTreeWalker f = new FileSystemTreeWalker(P, V, 4, true, true)) {
@@ -304,9 +304,9 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
     @Test
     public void skip_siblings_walking() throws IOException {
-        final Path P = Paths.get("src/test/fs");
-        final Path S1 = Paths.get("src/test/fs/test.tar");
-        final Path S2 = Paths.get("src/test/fs/dir/subdir");
+        final Path P = Paths.get("src/test/fs/suite1");
+        final Path S1 = Paths.get("src/test/fs/suite1/test.tar");
+        final Path S2 = Paths.get("src/test/fs/suite1/dir/subdir");
         DummyFileVisitor visitor = new DummyFileVisitor();
 
         //
@@ -320,9 +320,9 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
             f.walk();
         }
 
-        then(visitor.visited).containsExactly(S1, Paths.get("src/test/fs/dir/subdir/afile.txt"));
-        then(visitor.walkedIn).containsExactly(P, Paths.get("src/test/fs/dir"), Paths.get("src/test/fs/dir/subdir"));
-        then(visitor.walkedOut).containsExactly(P, Paths.get("src/test/fs/dir"), Paths.get("src/test/fs/dir/subdir"));
+        then(visitor.visited).containsExactly(S1, Paths.get("src/test/fs/suite1/dir/subdir/afile.txt"));
+        then(visitor.walkedIn).containsExactly(P, Paths.get("src/test/fs/suite1/dir"), Paths.get("src/test/fs/suite1/dir/subdir"));
+        then(visitor.walkedOut).containsExactly(P, Paths.get("src/test/fs/suite1/dir"), Paths.get("src/test/fs/suite1/dir/subdir"));
         then(visitor.errors).isEmpty();
 
         //
@@ -338,17 +338,17 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         }
 
         then(visitor.visited).containsExactly(
-            Paths.get("src/test/fs/test.tar"), Paths.get("src/test/fs/test.zip"), Paths.get("src/test/fs/test.tgz")
+            Paths.get("src/test/fs/suite1/test.tar"), Paths.get("src/test/fs/suite1/test.zip"), Paths.get("src/test/fs/suite1/test.tgz")
         );
-        then(visitor.walkedIn).containsExactly(P, Paths.get("src/test/fs/dir"), Paths.get("src/test/fs/dir/subdir"));
-        then(visitor.walkedOut).containsExactly(P, Paths.get("src/test/fs/dir"));
+        then(visitor.walkedIn).containsExactly(P, Paths.get("src/test/fs/suite1/dir"), Paths.get("src/test/fs/suite1/dir/subdir"));
+        then(visitor.walkedOut).containsExactly(P, Paths.get("src/test/fs/suite1/dir"));
         then(visitor.errors).isEmpty();
     }
 
     @Test
     public void stop_walking() throws IOException {
-        final Path P = Paths.get("src/test/fs");
-        final Path S = Paths.get("src/test/fs/dir");
+        final Path P = Paths.get("src/test/fs/suite1");
+        final Path S = Paths.get("src/test/fs/suite1/dir");
         final DummyFileVisitor V = new DummyFileVisitor();
 
         V.checkStopWalking = (path) -> {
@@ -367,8 +367,8 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
     @Test
     public void skip_subtree() throws IOException {
-        final Path P = Paths.get("src/test/fs");
-        final Path S = Paths.get("src/test/fs/dir");
+        final Path P = Paths.get("src/test/fs/suite1");
+        final Path S = Paths.get("src/test/fs/suite1/dir");
         final DummyFileVisitor V = new DummyFileVisitor();
 
         V.checkSkipSubtree = (path) -> {
@@ -380,8 +380,8 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         }
 
         then(V.visited).containsExactly(
-            Paths.get("src/test/fs/test.tar"), Paths.get("src/test/fs/test.zip"),
-            Paths.get("src/test/fs/test.tgz")
+            Paths.get("src/test/fs/suite1/test.tar"), Paths.get("src/test/fs/suite1/test.zip"),
+            Paths.get("src/test/fs/suite1/test.tgz")
         );
         then(V.walkedIn).containsExactly(P, S);
         then(V.walkedOut).containsExactly(P);
@@ -397,7 +397,7 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         final File F1 = new File(HOME, "dir2"); F1.mkdir();
         final File F2 = new File(HOME, "dir/subdir");
 
-        FileUtils.copyDirectory(new File("src/test/fs"), HOME);
+        FileUtils.copyDirectory(new File("src/test/fs/suite1"), HOME);
         F1.setReadable(false); F2.setReadable(false);
         // ---
 
@@ -424,7 +424,7 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
     @Test
     public void same_DirectoryNode_iterator_once_created() throws IOException {
         FileSystemTreeWalker.DirectoryNode n = new FileSystemTreeWalker.DirectoryNode(
-            Paths.get("src/test/fs"), true
+            Paths.get("src/test/fs/suite1"), true
         );
 
         Iterator<Path> i = n.iterator();
@@ -432,5 +432,32 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
         n.close();
         then(n.iterator()).isNotSameAs(i);
+    }
+
+    @Test
+    public void filenames_with_special_characters() throws IOException {
+        final String BASEDIR = new File("").getAbsolutePath();
+        final DummyFileVisitor V = new DummyFileVisitor();
+
+        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Path.of("src/test/fs/suite2/urlencode.zip"), V, true)) {
+            f.walk();
+        }
+
+        then(toUris(V.visited)).containsExactly(
+            new File("src/test/fs/suite2/urlencode.zip").toURI(),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/file+with+spaces.txt"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/dir/afile.txt"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/dir/file%3Fwith+special.txt")
+        );
+        then(toUris(V.walkedIn)).containsExactly(
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/dir"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/dir/subdir")
+        );
+        then(toUris(V.walkedOut)).containsExactly(
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/dir"),
+            URI.create("vfs:zip:file://" + BASEDIR + "/src/test/fs/suite2/urlencode.zip!/dir/subdir"));
+        then(V.errors).isEmpty();
     }
 }

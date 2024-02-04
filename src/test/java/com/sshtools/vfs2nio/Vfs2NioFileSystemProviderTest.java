@@ -79,7 +79,7 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
         then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:file:///"));
         fs.close();
 
-        String tar = new File("src/test/fs/test.tar").getAbsolutePath();
+        String tar = new File("src/test/fs/suite1/test.tar").getAbsolutePath();
         uri = URI.create("vfs:tar://" + tar);
         fs = provider.newFileSystem(uri, Collections.EMPTY_MAP);
         then(fs.getRoot().toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
@@ -181,7 +181,7 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
 
     @Test
     public void tar_navigation() throws IOException {
-        String tar = new File("src/test/fs/test.tar").getAbsolutePath();
+        String tar = new File("src/test/fs/suite1/test.tar").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:tar://" + tar));
         then(path).isNotNull();
         then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
@@ -192,7 +192,7 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
 
     @Test
     public void tgz_navigation() throws IOException {
-        String tar = new File("src/test/fs/test.tgz").getAbsolutePath();
+        String tar = new File("src/test/fs/suite1/test.tgz").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:tgz://" + tar));
         then(path).isNotNull();
         then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
@@ -205,7 +205,7 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
 
     @Test
     public void zip_navigation() throws IOException {
-        String tar = new File("src/test/fs/test.zip").getAbsolutePath();
+        String tar = new File("src/test/fs/suite1/test.zip").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:zip://" + tar));
         then(path).isNotNull();
         then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
