@@ -20,6 +20,7 @@
  */
 package com.sshtools.vfs2nio;
 
+import java.io.Console;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,15 +58,18 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.commons.vfs2.AllFileSelector;
+import org.apache.commons.vfs2.FileContent;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.FileSystemOptions;
+import org.apache.commons.vfs2.RandomAccessContent;
 import org.apache.commons.vfs2.UserAuthenticationData;
 import org.apache.commons.vfs2.UserAuthenticationData.Type;
 import org.apache.commons.vfs2.UserAuthenticator;
@@ -73,6 +77,10 @@ import org.apache.commons.vfs2.VFS;
 import org.apache.commons.vfs2.util.RandomAccessMode;
 
 public class Vfs2NioFileSystemProvider extends FileSystemProvider {
+
+    public static final String[] ARCHIVE_FILE_TYPES = new String[] {
+        "bz2", "gz", "jar", "tar", "tbz2", "tgz", "zip"
+    };
 
     public final static String FILE_SYSTEM_OPTIONS = "com.sshtools.vfs2nio.fileSystemOptions";
     public final static String VFS_MANAGER = "com.sshtools.vfs2nio.vfsManager";
@@ -82,7 +90,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     public final static String DOMAIN = "com.sshtools.vfs2nio.domain";
 
     // Checks that the given file is a UnixPath
-    static final Vfs2NioPath toVFSPath(Path path) {
+    static final Vfs2NioPath toVfs2NioPath(Path path) {
         if (path == null) {
             throw new NullPointerException();
         }
@@ -101,8 +109,8 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public void checkAccess(Path path, AccessMode... modes) throws IOException {
-        var p = toVFSPath(path);
-        var fo = p.toFileObject();
+        Vfs2NioPath p = toVfs2NioPath(path);
+        FileObject fo = p.toFileObject();
         for (AccessMode m : modes) {
             switch (m) {
                 case EXECUTE:
@@ -131,15 +139,15 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         /*
          * TODO: Support REPLACE_EXISTING, COPY_ATTRIBUTES, ATOMIC_MOVE if possible
          */
-        toVFSPath(target).toFileObject().copyFrom(toVFSPath(src).toFileObject(), new AllFileSelector());
+        toVfs2NioPath(target).toFileObject().copyFrom(toVfs2NioPath(src).toFileObject(), new AllFileSelector());
     }
 
     @Override
     public void createDirectory(Path path, FileAttribute<?>... attrs) throws IOException {
         /* TODO: Support attributes */
-        var p = toVFSPath(path);
+        Vfs2NioPath p = toVfs2NioPath(path);
         checkAccess(p, AccessMode.WRITE);
-        var fo = p.toFileObject();
+        FileObject fo = p.toFileObject();
         if (fo.exists()) {
             throw new FileAlreadyExistsException(p.toString());
         }
@@ -148,20 +156,20 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public final void delete(Path path) throws IOException {
-        var p = toVFSPath(path);
+        Vfs2NioPath p = toVfs2NioPath(path);
         checkAccess(p, AccessMode.WRITE);
-        var fo = p.toFileObject();
+        FileObject fo = p.toFileObject();
         fo.deleteAll();
     }
 
     @Override
     public <V extends FileAttributeView> V getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
-        return Vfs2NioFileAttributeView.get(toVFSPath(path), type);
+        return Vfs2NioFileAttributeView.get(toVfs2NioPath(path), type);
     }
 
     @Override
     public FileStore getFileStore(Path path) throws IOException {
-        return toVFSPath(path).getFileStore();
+        return toVfs2NioPath(path).getFileStore();
     }
 
     @Override
@@ -170,7 +178,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             synchronized (filesystems) {
                 Vfs2NioFileSystem vfs = null;
 
-                var path = toFsUri(uri);
+                URI path = toVfsUri(uri);
 
                 vfs = filesystems.get(
                     VFS.getManager().resolveFile(path).getFileSystem().getRoot()
@@ -222,7 +230,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     @Override
     public boolean isHidden(Path path) {
         try {
-            return toVFSPath(path).toFileObject().isHidden();
+            return toVfs2NioPath(path).toFileObject().isHidden();
         } catch (FileSystemException e) {
             return false;
         }
@@ -230,12 +238,12 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public boolean isSameFile(Path path, Path other) throws IOException {
-        return toVFSPath(path).toFileObject().equals(toVFSPath(other).toFileObject());
+        return toVfs2NioPath(path).toFileObject().equals(toVfs2NioPath(other).toFileObject());
     }
 
     @Override
     public void move(Path src, Path target, CopyOption... options) throws IOException {
-        toVFSPath(src).toFileObject().moveTo(toVFSPath(target).toFileObject());
+        toVfs2NioPath(src).toFileObject().moveTo(toVfs2NioPath(target).toFileObject());
     }
 
     @Override
@@ -252,27 +260,28 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public DirectoryStream<Path> newDirectoryStream(Path path, Filter<? super Path> filter) throws IOException {
-        return new Vfs2NioDirectoryStream(toVFSPath(path), filter);
+        return new Vfs2NioDirectoryStream(toVfs2NioPath(path), filter);
     }
 
     @Override
     public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
             throws IOException {
         /* TODO support more options */
-        var fileObject = toVFSPath(path).toFileObject();
+        FileObject fileObject = toVfs2NioPath(path).toFileObject();
         if (fileObject.exists() && options.contains(StandardOpenOption.CREATE_NEW)) {
             throw new FileAlreadyExistsException(path.toString());
         } else if (!fileObject.exists()
                 && (options.contains(StandardOpenOption.CREATE_NEW) || options.contains(StandardOpenOption.CREATE))) {
             fileObject.createFile();
         }
-        var content = fileObject.getContent();
-        var rac = content.getRandomAccessContent(toRandomAccessMode(options));
+        FileContent content = fileObject.getContent();
+        RandomAccessContent rac = content.getRandomAccessContent(toRandomAccessMode(options));
+
         return new FileChannel() {
 
             @Override
             public int read(ByteBuffer dst) throws IOException {
-                var arr = new byte[dst.remaining()];
+                byte[] arr = new byte[dst.remaining()];
                 int r = rac.getInputStream().read(arr, 0, arr.length);
                 if (r > 0) {
                     dst.put(arr, 0, r);
@@ -283,8 +292,8 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             @Override
             public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
                 long t = 0;
-                for (var dst : dsts) {
-                    var arr = new byte[dst.remaining()];
+                for (ByteBuffer dst : dsts) {
+                    byte[] arr = new byte[dst.remaining()];
                     int r = rac.getInputStream().read(arr, offset, length);
                     if (r > 0) {
                         dst.put(arr, 0, r);
@@ -296,7 +305,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
             @Override
             public int write(ByteBuffer src) throws IOException {
-                var arr = new byte[src.remaining()];
+                byte[] arr = new byte[src.remaining()];
                 src.get(arr);
                 rac.write(arr);
                 return arr.length;
@@ -305,8 +314,8 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
             @Override
             public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
                 long t = 0;
-                for (var src : srcs) {
-                    var arr = new byte[src.remaining()];
+                for (ByteBuffer src : srcs) {
+                    byte[] arr = new byte[src.remaining()];
                     src.get(arr);
                     rac.write(arr, offset, length);
                     t += arr.length;
@@ -461,11 +470,11 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     @SuppressWarnings("unchecked")
     @Override
     public Vfs2NioFileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
-        var path = toFsUri(uri);
+        URI path = toVfsUri(uri);
 
         synchronized (filesystems) {
             FileSystemManager mgr = VFS.getManager();
-            var opts = (env == null) ? null : (FileSystemOptions) env.get(FILE_SYSTEM_OPTIONS);
+            FileSystemOptions opts = (env == null) ? null : (FileSystemOptions) env.get(FILE_SYSTEM_OPTIONS);
             if (opts == null) {
                 opts = new FileSystemOptions();
             }
@@ -506,7 +515,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                 throw new FileSystemAlreadyExistsException("A file system for " + root + " has been already created; use getFileSystem()");
             }
 
-            var vfs = new Vfs2NioFileSystem(this, root);
+            Vfs2NioFileSystem vfs = new Vfs2NioFileSystem(this, root);
 
             filesystems.put(root, vfs);
             return vfs;
@@ -515,23 +524,23 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public InputStream newInputStream(Path path, OpenOption... options) throws IOException {
-        var optlist = Arrays.asList(options);
+        List optlist = Arrays.asList(options);
         if (optlist.contains(StandardOpenOption.WRITE)) {
             throw new IllegalArgumentException(
                     String.format("%s is not supported by this method.", StandardOpenOption.WRITE));
         }
         checkAccess(path, AccessMode.READ);
-        return toVFSPath(path).toFileObject().getContent().getInputStream();
+        return toVfs2NioPath(path).toFileObject().getContent().getInputStream();
     }
 
     @Override
     public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
-        var optlist = Arrays.asList(options);
+        List optlist = Arrays.asList(options);
         if (optlist.contains(StandardOpenOption.READ)) {
             throw new IllegalArgumentException(
                     String.format("%s is not supported by this method.", StandardOpenOption.READ));
         }
-        var fo = toVFSPath(path).toFileObject();
+        FileObject fo = toVfs2NioPath(path).toFileObject();
         if (optlist.contains(StandardOpenOption.CREATE_NEW) && fo.exists()) {
             throw new IOException(String.format("%s already exists, and the option %s was specified.", fo,
                     StandardOpenOption.CREATE_NEW));
@@ -545,14 +554,14 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
     public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options)
             throws IOException {
         if (type == BasicFileAttributes.class || type == Vfs2NioFileAttributes.class) {
-            return (A) toVFSPath(path).getAttributes();
+            return (A) toVfs2NioPath(path).getAttributes();
         }
         return null;
     }
 
     @Override
     public Map<String, Object> readAttributes(Path path, String attribute, LinkOption... options) throws IOException {
-        return toVFSPath(path).readAttributes(attribute, options);
+        return toVfs2NioPath(path).readAttributes(attribute, options);
     }
 
     @Override
@@ -562,7 +571,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
     @Override
     public void setAttribute(Path path, String attribute, Object value, LinkOption... options) throws IOException {
-        toVFSPath(path).setAttribute(attribute, value, options);
+        toVfs2NioPath(path).setAttribute(attribute, value, options);
     }
 
     protected URI toPathlessURI(URI uri) {
@@ -576,19 +585,35 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         }
     }
 
-    protected URI toFsUri(URI uri) {
-        var scheme = uri.getScheme();
+    /**
+     * This method turns a java.nio.Path URI into a VFS USI by:
+     *   <li> stripping out the URI scheme </li>
+     *   <li> adding a tailing !/ if the URL represents an inner file system
+     *        (e.g. an archive) </li>
+     *
+     * @param uri the java.nio.Path URI to convert
+     *
+     * @return the VFS URI
+     */
+    protected URI toVfsUri(URI uri) {
+        String scheme = uri.getScheme();
         if ((scheme == null) || !scheme.equalsIgnoreCase(getScheme())) {
             throw new IllegalArgumentException(String.format("URI scheme must be %s", getScheme()));
         }
-        try {
-            var spec = uri.getRawSchemeSpecificPart();
-            int sep = spec.indexOf("!/");
-            if (sep != -1) {
-                spec = spec.substring(0, sep);
+
+        String specificPart = uri.getRawSchemeSpecificPart();
+        //
+        // TODO: move  WALK_INTO_FILE_TYPES outside FileSystemTreeWalker and rename it
+        //
+       for (String ext: ARCHIVE_FILE_TYPES) {
+            if (specificPart.endsWith('.' + ext)) {
+                specificPart += "!/";
+                break;
             }
-            var u = new URI(spec);
-            return u;
+        }
+
+        try {
+            return new URI(specificPart);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
@@ -610,12 +635,12 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
         @Override
         public UserAuthenticationData requestAuthentication(Type[] types) {
-            var typeList = Arrays.asList(types);
-            var username = env == null ? System.getProperty("user.name")
+            List typeList = Arrays.asList(types);
+            String username = env == null ? System.getProperty("user.name")
                     : (String) env.getOrDefault(USERNAME, System.getProperty("user.name"));
-            var domain = env == null ? null : (String) env.get(DOMAIN);
+            String domain = env == null ? null : (String) env.get(DOMAIN);
             char[] password = null;
-            var pwobj = env == null ? null : env.get(PASSWORD);
+            Object pwobj = env == null ? null : env.get(PASSWORD);
             if (pwobj instanceof String) {
                 password = ((String) pwobj).toCharArray();
             } else if (pwobj instanceof char[]) {
@@ -638,8 +663,8 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
                     }
                 }
             }
-            var ud = new UserAuthenticationData();
-            var console = System.console();
+            UserAuthenticationData ud = new UserAuthenticationData();
+            Console console = System.console();
             if (typeList.contains(UserAuthenticationData.DOMAIN)) {
                 if (domain != null) {
                     ud.setData(UserAuthenticationData.DOMAIN, domain.toCharArray());

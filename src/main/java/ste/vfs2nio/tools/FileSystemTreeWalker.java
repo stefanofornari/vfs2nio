@@ -93,10 +93,6 @@ import java.util.Queue;
  */
 public class FileSystemTreeWalker implements Closeable {
 
-    public static final String[] WALK_INTO_FILE_TYPES = new String[] {
-        "bz2", "gz", "jar", "tar", "tbz2", "tgz", "zip"
-    };
-
     public final FileVisitor<Path> visitor;
     public final Path path;
     public final int maxDepth;
@@ -238,9 +234,8 @@ public class FileSystemTreeWalker implements Closeable {
 
         // file is a directory, attempt to open it
         FileVisitResult result = CONTINUE;
-        DirectoryStream<Path> stream = null;
         try {
-            stream = Files.newDirectoryStream(entry);
+            Files.newDirectoryStream(entry).close();
             result = visitor.preVisitDirectory(entry, null);
         } catch (IOException ioe) {
             result = visitor.visitFileFailed(entry, ioe);
@@ -381,7 +376,6 @@ public class FileSystemTreeWalker implements Closeable {
 
         Optional<URI> archiveUri = ArchiveDetector.uriIfArchive(entry);
         if (archiveUri.isPresent()) {
-            System.out.println(archiveUri.toString());
             Vfs2NioFileSystem fs = (Vfs2NioFileSystem)FileSystems.newFileSystem(
                 archiveUri.get(), Collections.EMPTY_MAP
             );

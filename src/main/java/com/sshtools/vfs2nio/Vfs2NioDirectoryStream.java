@@ -23,6 +23,7 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import org.apache.commons.vfs2.FileObject;
 
 /**
  *
@@ -67,10 +68,10 @@ public class Vfs2NioDirectoryStream implements DirectoryStream<Path> {
         // mount point (i.e. the path root).
         //
         Vfs2NioFileSystem fs = path.getFileSystem();
-        var obj = fs.getFileAttributes(path).isRegularFile() ? fs.root : fs.pathToFileObject(path);
+        FileObject obj = fs.getFileAttributes(path).isRegularFile() ? fs.root : fs.pathToFileObject(path);
 
         try {
-            var children = obj.getChildren();
+            FileObject[] children = obj.getChildren();
             return new Iterator<Path>() {
                 int index;
 
@@ -99,6 +100,9 @@ public class Vfs2NioDirectoryStream implements DirectoryStream<Path> {
                 }
             };
         } catch (IOException x) {
+            System.out.println("FAILURE: " + obj);
+            System.out.println("ROOT: " + fs.root);
+            //return Collections.emptyIterator();
             throw new IllegalStateException(x);
         }
     }
