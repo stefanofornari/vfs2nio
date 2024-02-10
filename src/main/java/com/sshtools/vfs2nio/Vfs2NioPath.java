@@ -18,8 +18,6 @@ package com.sshtools.vfs2nio;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.Charset;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.LinkOption;
@@ -43,6 +41,7 @@ import java.util.Objects;
 import org.apache.commons.vfs2.FileObject;
 
 import org.apache.nio.ImmutableList;
+import static ste.vfs2nio.tools.Vfs2NioUtils.encodePath;
 
 public class Vfs2NioPath implements Path {
 
@@ -315,11 +314,36 @@ public class Vfs2NioPath implements Path {
 
     @Override
     public URI toUri() {
+        final URI rootUri = fileSystem.root.getURI();
+
+        String fullScheme = fileSystem.provider().getScheme();
+        String specificPart = rootUri.toString();
+        String authority = "";
+
+        int pos = specificPart.indexOf("://");
+        if (pos >= 0) {
+            pos = pos+3;
+            //
+            // search for the authority part; note that URI.getAuthority does not
+            // work with multiple schemes
+            //
+            int end = specificPart.indexOf("/", pos);
+            if (end > 0) {
+                authority = specificPart.substring(pos, end);
+
+            }
+            end = authority.length();
+
+            fullScheme += (':' + specificPart.substring(0, pos));
+            specificPart = specificPart.substring(pos + end);
+        }
+
         return URI.create(String.format(
-            "%s:%s%s",
-            fileSystem.provider().getScheme(),
-            fileSystem.root.getPublicURIString(),
-            encodePath()
+            "%s%s%s%s",
+            fullScheme,
+            authority,
+            specificPart,
+            encodePath(toString())
         ));
     }
 
@@ -477,19 +501,5 @@ public class Vfs2NioPath implements Path {
 
     void setTimes(FileTime mtime, FileTime atime, FileTime ctime) throws IOException {
         getFileSystem().setTimes(normalize(), mtime, atime, ctime);
-    }
-
-    private String encodePath() {
-        final String elements[] = toString().split("/");
-
-        final StringBuilder sb = new StringBuilder();
-        for (String element: elements) {
-            if (!sb.isEmpty()) {
-                sb.append('/');
-            }
-            sb.append(URLEncoder.encode(element, Charset.defaultCharset()));
-        }
-
-        return sb.toString();
     }
 }

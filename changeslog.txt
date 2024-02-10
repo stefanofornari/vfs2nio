@@ -1,3 +1,8 @@
+20240210
+--------
+- fixed issue #2 - Walking into archives fails when a filename has spaces or other special characters
+- released 0.11.5
+
 20240208
 --------
 - fixed issue #3 - Walking into archives fails when a filename is an archive

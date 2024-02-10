@@ -40,6 +40,7 @@ import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.nio.ImmutableList;
 
+
 public class Vfs2NioFileSystem extends FileSystem {
 
     private static final Set<String> supportedFileAttributeViews = Collections
@@ -54,7 +55,7 @@ public class Vfs2NioFileSystem extends FileSystem {
     public Vfs2NioFileSystem(Vfs2NioFileSystemProvider fileSystemProvider, FileObject root) {
         this.fileSystemProvider = fileSystemProvider;
         this.root = root;
-        this.rootPath = fileObjectToPath(root);
+        this.rootPath = fileObjectToPath(root);  // TODO: this does not make sense
     }
 
     @Override
@@ -327,7 +328,7 @@ public class Vfs2NioFileSystem extends FileSystem {
     }
 
     protected Vfs2NioPath create(ImmutableList<String> names) {
-        return new Vfs2NioPath(this, names.toArray(new String[0]));
+        return new Vfs2NioPath(this, names);
     }
 
     boolean exists(Vfs2NioPath path) {
@@ -337,4 +338,8 @@ public class Vfs2NioFileSystem extends FileSystem {
             return false;
         }
     }
+
+    // --------------------------------------------------------- private methods
+
+
 }

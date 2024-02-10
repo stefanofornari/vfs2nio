@@ -172,10 +172,10 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
             }
             Collections.sort(names);
             /* Get names directly */
-            List<String> directNames = new ArrayList<>(Arrays.asList(rootFile.list()));
-            Collections.sort(directNames);
+            List<String> expected = new ArrayList<>(Arrays.asList(rootFile.list()));
+            Collections.sort(expected);
             /* Compare them */
-            assertEquals(names, directNames);
+            assertEquals(expected, names);
         }
     }
 
@@ -237,6 +237,22 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
         Path firstChild = Files.list(here).findFirst().get();
         then(firstChild.isAbsolute()).isTrue();
         then(firstChild).isEqualTo(firstChild.toAbsolutePath());
+    }
+
+    @Test
+    public void uri_with_special_characters() throws Exception {
+        then(
+            Path.of(URI.create("vfs:file:///dir%20with%20spaces/file%20with%20spaces.txt")).toString()
+        ).isEqualTo("dir with spaces/file with spaces.txt");
+
+        then(
+            Path.of(URI.create("vfs:file:///dir%20with%20%3F/file%20with%20%C3%A8.txt")).toString()
+        ).isEqualTo("dir with ?/file with è.txt");
+
+        final String ZIP = new File("src/test/fs/suite2/with%20space.zip").getAbsolutePath();
+        then(
+            Path.of(URI.create("vfs:zip:file://" + ZIP + "!/dir/file%3Fwith%20special.txt")).toString()
+        ).isEqualTo("dir/file?with special.txt");
     }
 
     // --------------------------------------------------------- private methods

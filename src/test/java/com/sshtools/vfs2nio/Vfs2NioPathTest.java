@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -47,6 +48,19 @@ public class Vfs2NioPathTest extends Vfs2NioTestBase {
         then(new Vfs2NioPath(fs, "").toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/"));
         then(new Vfs2NioPath(fs, "", "folder", "file.txt").toUri()).isEqualTo(URI.create("vfs:tar:file://" + tar + "!/folder/file.txt"));
         fs.close();
+    }
+
+    @Test
+    public void toUri_encodes_special_chars() throws Exception {
+        Vfs2NioFileSystem fs =
+            (Vfs2NioFileSystem)FileSystems.newFileSystem(URI.create("vfs:file:///"), Collections.EMPTY_MAP);
+        then(new Vfs2NioPath(fs, "file with spaces.txt").toUri().toString()).isEqualTo("vfs:file:///file%20with%20spaces.txt");
+        then(new Vfs2NioPath(fs, "dir", "sub\ndir", "file with spaces.txt").toUri().toString()).isEqualTo("vfs:file:///dir/sub%0Adir/file%20with%20spaces.txt");
+        fs.close();
+
+        final String ZIP = "file://" + new File("src/test/fs/suite2/with%20space.zip").getAbsolutePath();
+        Vfs2NioPath path = (Vfs2NioPath)Path.of(URI.create("vfs:zip:" + ZIP));
+        then(path.toUri().toString()).isEqualTo("vfs:zip:" + ZIP + "!/");
     }
 
     @Test

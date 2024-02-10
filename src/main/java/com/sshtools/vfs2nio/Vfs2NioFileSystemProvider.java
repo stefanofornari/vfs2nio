@@ -75,6 +75,7 @@ import org.apache.commons.vfs2.UserAuthenticationData.Type;
 import org.apache.commons.vfs2.UserAuthenticator;
 import org.apache.commons.vfs2.VFS;
 import org.apache.commons.vfs2.util.RandomAccessMode;
+import static ste.vfs2nio.tools.Vfs2NioUtils.decodePath;
 
 public class Vfs2NioFileSystemProvider extends FileSystemProvider {
 
@@ -219,7 +220,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         }
         String uriPath = uri.toString().replaceFirst("^([a-zA-Z]+:)+//", "");
 
-        return fileSystem.getPath(uriPath.replaceFirst("^" + rootPath, ""));
+        return fileSystem.getPath(decodePath(uriPath.replaceFirst("^" + rootPath, "")));
     }
 
     @Override
@@ -602,10 +603,7 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         }
 
         String specificPart = uri.getRawSchemeSpecificPart();
-        //
-        // TODO: move  WALK_INTO_FILE_TYPES outside FileSystemTreeWalker and rename it
-        //
-       for (String ext: ARCHIVE_FILE_TYPES) {
+        for (String ext: ARCHIVE_FILE_TYPES) {
             if (specificPart.endsWith('.' + ext)) {
                 specificPart += "!/";
                 break;

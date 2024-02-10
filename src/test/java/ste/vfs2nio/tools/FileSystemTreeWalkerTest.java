@@ -425,9 +425,9 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
 
         then(toUris(V.visited)).containsExactly(
             new File("src/test/fs/suite2/urlencode.zip").toURI(),
-            URI.create("vfs:zip:file://" + BASEDIR + "src/test/fs/suite2/urlencode.zip!/file+with+spaces.txt"),
+            URI.create("vfs:zip:file://" + BASEDIR + "src/test/fs/suite2/urlencode.zip!/file%20with%20spaces.txt"),
             URI.create("vfs:zip:file://" + BASEDIR + "src/test/fs/suite2/urlencode.zip!/dir/afile.txt"),
-            URI.create("vfs:zip:file://" + BASEDIR + "src/test/fs/suite2/urlencode.zip!/dir/file%3Fwith+special.txt")
+            URI.create("vfs:zip:file://" + BASEDIR + "src/test/fs/suite2/urlencode.zip!/dir/file%3Fwith%20special.txt")
         );
         then(toUris(V.walkedIn)).containsExactly(
             URI.create("vfs:zip:file://" + BASEDIR + "src/test/fs/suite2/urlencode.zip!/"),
@@ -439,7 +439,7 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
     }
 
     @Test
-    public void debug() throws IOException {
+    public void walk_into_nested_archives() throws IOException {
         final String BASEDIR = new File("").getAbsolutePath() + '/';
         final DummyFileVisitor V = new DummyFileVisitor();
 
@@ -466,4 +466,15 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         then(V.walkedOut).containsExactlyElementsOf(V.walkedIn);
         then(V.errors).isEmpty();
     }
+
+    @Test
+    public void debug() throws IOException {
+        final String BASEDIR = new File("").getAbsolutePath() + '/';
+        final DummyFileVisitor V = new DummyFileVisitor();
+
+        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Path.of("/opt/uzz/gitminer/rails"), V, true)) {
+            f.walk();
+        }
+    }
+
 }
