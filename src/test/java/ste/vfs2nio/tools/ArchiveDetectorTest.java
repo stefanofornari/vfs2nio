@@ -48,14 +48,14 @@ public class ArchiveDetectorTest {
     @Test
     public void archive_extensions() {
         for (String ext : SUPPORTED_ARCHIVES) {
-            then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of(URI.create("vfs:file://test." + ext))))
+            then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of(URI.create("vfs:file:///test." + ext))))
                 .contains(URI.create("vfs:" + SCHEMES.get(ext) + ":file:///test." + ext));
         }
 
-        then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of(URI.create("vfs:file://test.ZIP"))))
+        then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of(URI.create("vfs:file:///test.ZIP"))))
             .contains(URI.create("vfs:zip:file:///test.ZIP"));
 
-        then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of(URI.create("vfs:file://test.bZ2"))))
+        then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of(URI.create("vfs:file:///test.bZ2"))))
             .contains(URI.create("vfs:bz2:file:///test.bZ2"));
 
         then(FileSystemTreeWalker.ArchiveDetector.uriIfArchive(Path.of("/test.bZ2"))) // default faile system

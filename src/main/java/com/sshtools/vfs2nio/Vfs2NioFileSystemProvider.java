@@ -31,6 +31,7 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 import java.nio.channels.FileLock;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
@@ -208,19 +209,25 @@ public class Vfs2NioFileSystemProvider extends FileSystemProvider {
         }
 
         //
-        // Create a relative path from the given path and the determined root
+        // NOTE: here we know the path is valid and has a common root
         //
-        String root = fileSystem.root.getPublicURIString();
-        String rootPath = root.replaceFirst("^([a-zA-Z]+:)+//", "");
-        if (rootPath.endsWith("/")) {
-            rootPath = rootPath.substring(0, rootPath.length()-1);
-        }
-        if (rootPath.endsWith("!")) {
-            rootPath = rootPath.substring(0, rootPath.length()-1);
-        }
-        String uriPath = uri.toString().replaceFirst("^([a-zA-Z]+:)+//", "");
 
-        return fileSystem.getPath(decodePath(uriPath.replaceFirst("^" + rootPath, "")));
+        String root = fileSystem.root.getPublicURIString().replaceFirst("^([a-zA-Z]+:)+//", "").replaceFirst("^([a-zA-Z0-9\\.]+:[0-9]+)+", "");
+        String path = uri.toString().replaceFirst("^([a-zA-Z]+:)+//", "").replaceFirst("^([a-zA-Z0-9\\.]+:[0-9]+)+", "");
+
+        //
+        // if here path is shorter than root, it is a matter of separators, the
+        // path to return is the root
+        //
+        if (path.length() <= root.length()) {
+            return fileSystem.rootPath;
+        }
+
+        //
+        // Otherwise, the root shall be stripped out from the uri to get a
+        // relative path to resolve
+        //
+        return fileSystem.rootPath.resolve(decodePath(path.substring(root.length())));
     }
 
     @Override

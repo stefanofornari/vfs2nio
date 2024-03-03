@@ -45,12 +45,13 @@ public class Vfs2NioArchivePathsTest extends Vfs2NioWithFtpTestBase {
 
         path = Path.of(URI.create(ROOT + "!/dir"));
 
-        then(path.getName(0).toString()).isEqualTo("dir");
+        then(path.getName(0).toString()).isEqualTo("/");
         then(path.getRoot().toUri().toString()).isEqualTo(ROOT + "!/");
         then(path.getParent()).isNotNull();
-        then(path.getParent().toString()).isEqualTo("");
+        then(path.getParent().toString()).isEqualTo("/");
 
-
-        then(Files.list(path).map((p) -> p.getFileName().toString())).containsExactly("subdir", "afile.txt");
+        then(Files.list(path).map(
+            (p) -> p.getFileName().toString())
+        ).containsExactly("subdir", "afile.txt");
     }
 }

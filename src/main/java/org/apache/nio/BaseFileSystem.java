@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.vfs2.FileObject;
+import static ste.vfs2nio.tools.Vfs2NioUtils.splitPathName;
 
 public abstract class BaseFileSystem<T extends Path, P extends FileSystemProvider> extends FileSystem {
 
@@ -78,9 +79,7 @@ public abstract class BaseFileSystem<T extends Path, P extends FileSystemProvide
             path = path.substring(1);
         }
 
-        String[] names = (path.length() > 0) ? path.split("/") : new String[0];
-
-        return create(names);
+        return create(splitPathName(path));
     }
 
     @Override

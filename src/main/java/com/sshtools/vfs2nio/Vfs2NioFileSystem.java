@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.nio.ImmutableList;
+import static ste.vfs2nio.tools.Vfs2NioUtils.splitPathName;
 
 
 public class Vfs2NioFileSystem extends FileSystem {
@@ -55,7 +56,7 @@ public class Vfs2NioFileSystem extends FileSystem {
     public Vfs2NioFileSystem(Vfs2NioFileSystemProvider fileSystemProvider, FileObject root) {
         this.fileSystemProvider = fileSystemProvider;
         this.root = root;
-        this.rootPath = fileObjectToPath(root);  // TODO: this does not make sense
+        this.rootPath = new Vfs2NioPath(this, "");  // "" means root
     }
 
     @Override
@@ -65,6 +66,24 @@ public class Vfs2NioFileSystem extends FileSystem {
 
     @Override
     public Vfs2NioPath getPath(String first, String... more) {
+        if (first == null) {
+            throw new IllegalArgumentException("first can not be null");
+        }
+
+        if (more == null) {
+            throw new IllegalArgumentException("any more can not be null (element at index 0 is null)");
+        } else {
+            for (int i=0; i<more.length; ++i) {
+                if (more[i] == null) {
+                    throw new IllegalArgumentException(
+                        String.format("any more can not be null (element at index %d is null)", i)
+                    );
+                }
+            }
+        }
+        if (first.startsWith("!")) {
+            first = first.substring(1);
+        }
         StringBuilder sb = new StringBuilder();
         if (first != null && first.length() > 0) {
             appendDedupSep(sb, first.replace('\\', '/'));   // in case we are running on Windows
@@ -84,11 +103,9 @@ public class Vfs2NioFileSystem extends FileSystem {
             sb.setLength(sb.length() - 1);
         }
 
-        String path = sb.toString().replaceFirst("!?/", "");
+        String path = sb.toString();
 
-        String[] names = (path.length() > 0) ? path.split("/") : new String[0];
-
-        return create(names);
+        return create(splitPathName(path));
     }
 
     @Override
@@ -123,7 +140,7 @@ public class Vfs2NioFileSystem extends FileSystem {
 
     @Override
     public Iterable<Path> getRootDirectories() {
-        return Collections.<Path>singleton(create("/"));
+        return Collections.<Path>singleton(rootPath);
     }
 
     @Override
@@ -319,10 +336,6 @@ public class Vfs2NioFileSystem extends FileSystem {
         }
     }
 
-    public Vfs2NioPath fileObjectToPath(FileObject fo) {
-        return new Vfs2NioPath(this);
-    }
-
     public FileStore getFileStore(Vfs2NioPath path) {
         return new Vfs2NioFileStore(path);
     }
@@ -338,8 +351,4 @@ public class Vfs2NioFileSystem extends FileSystem {
             return false;
         }
     }
-
-    // --------------------------------------------------------- private methods
-
-
 }

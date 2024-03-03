@@ -52,4 +52,12 @@ public abstract class Vfs2NioTestBase {
     protected Stream<URI> toUris(List<Path> paths) {
         return paths.stream().map((p) -> p.toUri());
     }
+
+    protected List<URI> toUris(Iterable<Path> paths) {
+        final List<URI> ret = new ArrayList();
+        
+        paths.forEach((p) -> ret.add(p.toUri()));
+
+        return ret;
+    }
 }

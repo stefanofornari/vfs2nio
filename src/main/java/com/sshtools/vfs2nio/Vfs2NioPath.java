@@ -18,6 +18,7 @@ package com.sshtools.vfs2nio;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.LinkOption;
@@ -41,13 +42,22 @@ import java.util.Objects;
 import org.apache.commons.vfs2.FileObject;
 
 import org.apache.nio.ImmutableList;
-import static ste.vfs2nio.tools.Vfs2NioUtils.encodePath;
+import ste.vfs2nio.tools.UriElements;
+import ste.vfs2nio.tools.Vfs2NioUtils;
 
 public class Vfs2NioPath implements Path {
 
     public final ImmutableList<String> names;
+
     private final Vfs2NioFileSystem fileSystem;
 
+    /**
+     * If the first name is the empty string "", the path is absolute, otherwise
+     * it is a relative path
+     *
+     * @param fileSystem
+     * @param names
+     */
     public Vfs2NioPath(Vfs2NioFileSystem fileSystem, ImmutableList<String> names) {
         this.fileSystem = fileSystem;
         this.names = names;
@@ -124,10 +134,7 @@ public class Vfs2NioPath implements Path {
 
     @Override
     public Vfs2NioPath getParent() {
-        if (names.isEmpty() || ((names.size() == 1) && (getRoot() == null))) {
-            return null;
-        }
-        return create(names.subList(0, names.size() - 1));
+        return (names.size() <= 1) ? null : create(names.subList(0, names.size() - 1));
     }
 
     @Override
@@ -148,7 +155,7 @@ public class Vfs2NioPath implements Path {
 
     @Override
     public boolean isAbsolute() {
-        return true;
+        return (names.size() > 0) && (names.get(0).length() == 0);
     }
 
     @Override
@@ -242,20 +249,16 @@ public class Vfs2NioPath implements Path {
         if (p.names.isEmpty()) {
             return this;
         }
-        String[] names = new String[this.names.size() + p.names.size()];
-        int index = 0;
-        for (String n : names) {
-            names[index++] = n;
-        }
-        for (String n : p.names) {
-            names[index++] = n;
-        }
-        return create(names);
+
+        List<String> allNames = new ArrayList();
+        allNames.addAll(names); allNames.addAll(p.names);
+
+        return create(allNames);
     }
 
     @Override
     public Vfs2NioPath resolve(String other) {
-        return resolve(getFileSystem().getPath(other));
+        return resolve(fileSystem.getPath(other));
     }
 
     @Override
@@ -293,13 +296,13 @@ public class Vfs2NioPath implements Path {
 
     @Override
     public Path toAbsolutePath() {
-        //
-        // An absolute path is complete in that it doesn't need to be combined
-        // with other path information in order to locate a file. With Vfs2Nio
-        // all Vfs2NioPaths have all information needed to locate a file using
-        // their FileSystem
-        //
-        return this;
+        if (isAbsolute()) {
+            return this;
+        }
+
+        List<String> allNames = new ArrayList();
+        allNames.add(""); allNames.addAll(names);
+        return create(allNames);  // do we need to invove the parent?
     }
 
     @Override
@@ -309,42 +312,36 @@ public class Vfs2NioPath implements Path {
 
     @Override
     public String toString() {
-        return getPathname();
+        return (isAbsolute() ? "/" : "") + getPathname();
     }
 
     @Override
     public URI toUri() {
-        final URI rootUri = fileSystem.root.getURI();
+        //
+        // Note that due to a bug in Apache VFS AbstractFileName, getURI() does
+        // not handle correctly invalid URI characters (see
+        // https://stackoverflow.com/questions/77979746/abstractfilename-trying-to-create-invalid-uri )
+        // As a workaround we create the URI from its String representation and
+        // fix escapes
+        //
+        final URI rootUri = URI.create(Vfs2NioUtils.fixUriEscapes(fileSystem.root.getPublicURIString()));
+        final UriElements elems = Vfs2NioUtils.extractUriElements(rootUri);
 
-        String fullScheme = fileSystem.provider().getScheme();
-        String specificPart = rootUri.toString();
-        String authority = "";
-
-        int pos = specificPart.indexOf("://");
-        if (pos >= 0) {
-            pos = pos+3;
-            //
-            // search for the authority part; note that URI.getAuthority does not
-            // work with multiple schemes
-            //
-            int end = specificPart.indexOf("/", pos);
-            if (end > 0) {
-                authority = specificPart.substring(pos, end);
-
-            }
-            end = authority.length();
-
-            fullScheme += (':' + specificPart.substring(0, pos));
-            specificPart = specificPart.substring(pos + end);
+        String pathname = getPathname();
+        if (pathname.startsWith("/")) {
+            pathname = pathname.substring(1);
         }
 
-        return URI.create(String.format(
-            "%s%s%s%s",
-            fullScheme,
-            authority,
-            specificPart,
-            encodePath(toString())
-        ));
+        try {
+            return new URI(
+                fileSystem.provider().getScheme() + ':' + elems.scheme(),
+                (elems.authority() == null) ? "" : elems.authority(),
+                elems.path() + ((pathname.isEmpty()) ? "" : (pathname)),
+                null, null
+            );
+        } catch (URISyntaxException x) {
+            throw new IllegalStateException("unexpected invalid URI elements", x);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -414,9 +411,6 @@ public class Vfs2NioPath implements Path {
     }
 
     private String getPathname() {
-        if (names.isEmpty()) {
-            return "";
-        }
         StringBuilder sb = new StringBuilder();
         String separator = getFileSystem().getSeparator();
         for (String name : names) {

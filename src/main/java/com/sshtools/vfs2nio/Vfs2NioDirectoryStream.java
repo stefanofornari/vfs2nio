@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.apache.commons.vfs2.FileObject;
+import static ste.vfs2nio.tools.Vfs2NioUtils.splitPathName;
 
 /**
  *
@@ -91,7 +92,17 @@ public class Vfs2NioDirectoryStream implements DirectoryStream<Path> {
                     //
                     // Create Path relative to their root
                     //
-                    return new Vfs2NioPath(fs, children[index++].getName().getPath().substring(1).split(fs.getSeparator()));
+                    String[] subpaths = splitPathName(children[index++].getName().getPath().substring(1));
+                    if (path.isAbsolute()) {
+                        if (path.isAbsolute()) {
+                            String[] allSubpaths = new String[subpaths.length+1];
+                            allSubpaths[0] = "";
+                            System.arraycopy(subpaths, 0, allSubpaths, 1, subpaths.length);
+                            subpaths = allSubpaths;
+                        }
+
+                    }
+                    return new Vfs2NioPath(fs, subpaths);
                 }
 
                 @Override

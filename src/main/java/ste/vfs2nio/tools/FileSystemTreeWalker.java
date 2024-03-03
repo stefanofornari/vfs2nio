@@ -379,7 +379,7 @@ public class FileSystemTreeWalker implements Closeable {
             Vfs2NioFileSystem fs = (Vfs2NioFileSystem)FileSystems.newFileSystem(
                 archiveUri.get(), Collections.EMPTY_MAP
             );
-            return new Vfs2NioPath(fs, "");
+            return new Vfs2NioPath(fs);
         }
 
         return null;

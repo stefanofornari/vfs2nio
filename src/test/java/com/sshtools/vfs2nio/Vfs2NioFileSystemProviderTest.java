@@ -184,10 +184,10 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
         String tar = new File("src/test/fs/suite1/test.tar").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:tar://" + tar));
         then(path).isNotNull();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir");
 
         path = Files.list(path).findFirst().get();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir/subdir", "dir/afile.txt");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir/subdir", "/dir/afile.txt");
     }
 
     @Test
@@ -195,10 +195,10 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
         String tar = new File("src/test/fs/suite1/test.tgz").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:tgz://" + tar));
         then(path).isNotNull();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir");
 
         path = Files.list(path).findFirst().get();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir/subdir", "dir/afile.txt");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir/subdir", "/dir/afile.txt");
 
         path.getFileSystem().close();
     }
@@ -208,10 +208,50 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
         String tar = new File("src/test/fs/suite1/test.zip").getAbsolutePath();
         Path path = Paths.get(URI.create("vfs:zip://" + tar));
         then(path).isNotNull();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir");
 
         path = Files.list(path).findFirst().get();
-        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("dir/subdir", "dir/afile.txt");
+        then(Files.list(path).map(p -> p.toString()).toList()).containsExactly("/dir/subdir", "/dir/afile.txt");
+    }
+
+    @Test
+    public void relative_or_abolute_children() throws IOException {
+        Path here = Paths.get(URI.create("vfs:file://" + new File("").getAbsolutePath()));
+
+        then(here.isAbsolute()).isTrue();
+        then(here).isEqualTo(here.toAbsolutePath());
+
+        Path firstChild = Files.list(here).findFirst().get();
+        then(firstChild.isAbsolute()).isTrue();
+        then(firstChild).isEqualTo(firstChild.toAbsolutePath());
+
+        Path sub = here.getFileSystem().getPath("src");
+        firstChild = Files.list(sub).findFirst().get();
+        then(firstChild.isAbsolute()).isFalse();
+    }
+
+    @Test
+    public void uri_with_special_characters() throws Exception {
+        then(
+            Path.of(URI.create("vfs:file:///dir%20with%20spaces/file%20with%20spaces.txt")).toString()
+        ).isEqualTo("/dir with spaces/file with spaces.txt");
+
+        then(
+            Path.of(URI.create("vfs:file:///dir%20with%20%3F/file%20with%20%C3%A8.txt")).toString()
+        ).isEqualTo("/dir with ?/file with è.txt");
+
+        final String ZIP = new File("src/test/fs/suite2/with%20space%20and%3F.zip").getAbsolutePath();
+        then(
+            Path.of(URI.create("vfs:zip:file://" + ZIP + "!/dir/file%3Fwith%20special.txt")).toString()
+        ).isEqualTo("/dir/file?with special.txt");
+    }
+
+    // --------------------------------------------------------- private methods
+
+    private FileSystem createRootVFS() throws IOException {
+        URI uri = URI.create("vfs:" + rootFile.toURI().toString());
+        FileSystem fs = FileSystems.newFileSystem(uri, Collections.EMPTY_MAP);
+        return fs;
     }
 
     private void compareStreams(InputStream expected, InputStream actual) throws IOException {
@@ -225,42 +265,6 @@ public class Vfs2NioFileSystemProviderTest extends Vfs2NioWithFtpTestBase {
                 assertEquals(r1, r2);
             }
         }
-    }
-
-    @Test
-    public void all_absolute_path() throws IOException {
-        Path here = Paths.get(URI.create("vfs:" + new File("").getAbsoluteFile().toURI()));
-
-        then(here.isAbsolute()).isTrue();
-        then(here).isEqualTo(here.toAbsolutePath());
-
-        Path firstChild = Files.list(here).findFirst().get();
-        then(firstChild.isAbsolute()).isTrue();
-        then(firstChild).isEqualTo(firstChild.toAbsolutePath());
-    }
-
-    @Test
-    public void uri_with_special_characters() throws Exception {
-        then(
-            Path.of(URI.create("vfs:file:///dir%20with%20spaces/file%20with%20spaces.txt")).toString()
-        ).isEqualTo("dir with spaces/file with spaces.txt");
-
-        then(
-            Path.of(URI.create("vfs:file:///dir%20with%20%3F/file%20with%20%C3%A8.txt")).toString()
-        ).isEqualTo("dir with ?/file with è.txt");
-
-        final String ZIP = new File("src/test/fs/suite2/with%20space.zip").getAbsolutePath();
-        then(
-            Path.of(URI.create("vfs:zip:file://" + ZIP + "!/dir/file%3Fwith%20special.txt")).toString()
-        ).isEqualTo("dir/file?with special.txt");
-    }
-
-    // --------------------------------------------------------- private methods
-
-    private FileSystem createRootVFS() throws IOException {
-        URI uri = URI.create("vfs:" + rootFile.toURI().toString());
-        FileSystem fs = FileSystems.newFileSystem(uri, Collections.EMPTY_MAP);
-        return fs;
     }
 
     private void writeTestBytes(OutputStream out) throws IOException {

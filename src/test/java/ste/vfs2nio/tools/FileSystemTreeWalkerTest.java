@@ -466,15 +466,4 @@ public class FileSystemTreeWalkerTest extends Vfs2NioTestBase {
         then(V.walkedOut).containsExactlyElementsOf(V.walkedIn);
         then(V.errors).isEmpty();
     }
-
-    @Test
-    public void debug() throws IOException {
-        final String BASEDIR = new File("").getAbsolutePath() + '/';
-        final DummyFileVisitor V = new DummyFileVisitor();
-
-        try (FileSystemTreeWalker f = new FileSystemTreeWalker(Path.of("/opt/uzz/gitminer/rails"), V, true)) {
-            f.walk();
-        }
-    }
-
 }

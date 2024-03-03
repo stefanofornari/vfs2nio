@@ -1,3 +1,8 @@
+20240303
+- fixed/improved absolute/relative paths
+- improved special characters in paths (escaping)
+- bumped java version to 16
+
 20240210
 --------
 - fixed issue #2 - Walking into archives fails when a filename has spaces or other special characters
@@ -17,6 +22,7 @@
 --------
 - walking improvements
 - released 0.11.2
+vfs:jar:file:///opt/uzz/gitminer/firefox-daemon/default.profile/extensions/{DD43485F-44CC-4452-A6C6-69356A7E33DA}/chrome/autohide.jar!/content/ahpref.js
 
 20231230
 --------

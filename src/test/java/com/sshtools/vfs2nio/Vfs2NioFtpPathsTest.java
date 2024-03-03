@@ -50,10 +50,11 @@ public class Vfs2NioFtpPathsTest extends Vfs2NioWithFtpTestBase {
 
         path = Path.of(URI.create(ROOT + "/public"));
 
-        then(path.getName(0).toString()).isEqualTo("public");
+        then(path.getName(0).toString()).isEqualTo("/");
+        then(path.getName(1).toString()).isEqualTo("public");
         then(path.getRoot().toUri().toString()).isEqualTo(ROOT + '/');
         then(path.getParent()).isNotNull();
-        then(path.getParent().toString()).isEqualTo("");
+        then(path.getParent().toString()).isEqualTo("/");
 
         then(Files.list(path).map((p) -> p.getFileName().toString())).containsExactly("dir");
     }
@@ -70,18 +71,18 @@ public class Vfs2NioFtpPathsTest extends Vfs2NioWithFtpTestBase {
         }
 
         then(toUris(visitor.visited)).containsExactly(
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir/afile.txt")
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir/afile.txt")
         );
         then(visitor.errors).isEmpty();
         then(toUris(visitor.walkedIn)).containsExactly(
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/"),
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir"),
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir/subdir")
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/"),
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir"),
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir/subdir")
         );
         then(toUris(visitor.walkedOut)).containsExactly(
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/"),
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir"),
-            URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir/subdir")
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/"),
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir"),
+                URI.create("vfs:tgz:ftp://localhost:" + FTP.getServerControlPort() + "/test.tar.gz!/dir/subdir")
         );
     }
 }
