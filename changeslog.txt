@@ -2,6 +2,7 @@
 - fixed/improved absolute/relative paths
 - improved special characters in paths (escaping)
 - bumped java version to 16
+- released v0.11.6
 
 20240210
 --------
