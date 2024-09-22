@@ -10,7 +10,7 @@ I am not a lawyer and I do not want to enter any dispute on this, my intentetion
 simple:
 - original code can be found on the original licence in the mentioned repository
 - my contributions in this repository are released under EUPL
-- the whole package is released under EUPL (you can go get th original package
+- the whole package is released under EUPL (you can go get the original package
   if you prefer an Apache Lincense distribution)
 
 # vfs2nio
