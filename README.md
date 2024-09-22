@@ -6,7 +6,7 @@ the changes back if the original repository shows some activity and interest.
 Please note that the current fork is released under EPL (EUPL-1.2 or later
 https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12).
 
-I am not a lawyer and I want to enter any dispute on this, my intentetion is
+I am not a lawyer and I do not want to enter any dispute on this, my intentetion is
 simple:
 - original code can be found on the original licence in the mentioned repository
 - my contributions in this repository are released under EUPL
